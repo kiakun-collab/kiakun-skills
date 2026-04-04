@@ -1,0 +1,88 @@
+{
+  "$schema_version": "1.0",
+  "description": "Example output schema for the folder-to-vector-kb skill.",
+  "output_files": {
+    "knowledge_base_jsonl": "./1-structured/knowledge_base.jsonl",
+    "ingest_report_md": "./1-structured/ingest_report.md"
+  },
+  "document_record_example": {
+    "doc_id": "uuid-xxx",
+    "file_name": "项目A_终稿.pptx",
+    "file_path": "F:\\知识库-比稿\\0-比稿\\项目A\\项目A_终稿.pptx",
+    "file_size": 2048000,
+    "project_name_candidate_from_filename": "项目A",
+    "project_name_candidate_from_folder": "项目A",
+    "resolved_project_name": "项目A",
+    "project_name_confidence": 0.94,
+    "needs_review": false,
+    "is_final_candidate": true,
+    "project_name": "项目A",
+    "client_name": "华为",
+    "brand_name": "华为手机",
+    "industry": "3C电子",
+    "project_year": 2024,
+    "doc_type": "proposal",
+    "入库判断": "yes",
+    "入库原因": "终稿，内容完整，适合用于后续向量检索",
+    "chunks": [
+      {
+        "chunk_id": "chunk-uuid-001",
+        "chunk_index": 0,
+        "chunk_title": "项目背景与目标",
+        "section_title": "第一章 项目概述",
+        "chunk_type": "project_brief",
+        "chunk_summary": "项目旨在打造年轻化品牌形象",
+        "chunk_text": "清洗后的纯净文本内容……",
+        "why_this_chunk": "提供项目基础背景，帮助理解后续策略与创意推导",
+        "source_page": 1,
+        "tags": ["项目背景", "目标用户", "核心挑战"],
+        "brand_tone": "科技感、年轻化",
+        "target_kpi": "曝光量1亿+，互动率3%+",
+        "core_message": "华为 nova 系列定位年轻人群",
+        "budget": "500万",
+        "timeline": "2024.Q1-Q2",
+        "cleaning_stats": {
+          "original_len": 500,
+          "cleaned_len": 450,
+          "retention_ratio": 0.9,
+          "removed_patterns": [
+            "html_comment",
+            "markdown_image",
+            "control_chars"
+          ]
+        }
+      }
+    ]
+  },
+  "recommended_required_document_fields": [
+    "doc_id",
+    "file_name",
+    "file_path",
+    "file_size",
+    "resolved_project_name",
+    "doc_type",
+    "入库判断",
+    "入库原因",
+    "chunks"
+  ],
+  "recommended_required_chunk_fields": [
+    "chunk_id",
+    "chunk_index",
+    "chunk_title",
+    "chunk_type",
+    "chunk_summary",
+    "chunk_text",
+    "why_this_chunk",
+    "tags",
+    "cleaning_stats"
+  ],
+  "ingest_report_example_sections": [
+    "处理范围",
+    "文件统计",
+    "项目归组结果",
+    "终稿识别结果",
+    "入库判断汇总",
+    "待人工复核列表",
+    "主要清洗问题统计"
+  ]
+}
