@@ -13,11 +13,23 @@ description: |
 
 按优先级判断用户意图，路由到对应子技能：
 
-1. **认证相关**（"登录 / 检查登录 / 切换账号"）→ 执行 `xhs-auth` 技能。
-2. **内容发布**（"发布 / 发帖 / 上传图文 / 上传视频"）→ 执行 `xhs-publish` 技能。
-3. **搜索发现**（"搜索笔记 / 查看详情 / 浏览首页 / 查看用户"）→ 执行 `xhs-explore` 技能。
-4. **社交互动**（"评论 / 回复 / 点赞 / 收藏"）→ 执行 `xhs-interact` 技能。
-5. **复合运营**（"竞品分析 / 热点追踪 / 批量互动 / 一键创作"）→ 执行 `xhs-content-ops` 技能。
+1. **认证相关**（"登录 / 检查登录 / 切换账号 / 退出登录"）  
+   → 执行 `xhs-auth` 技能。
+
+2. **内容发布**（"发布 / 发帖 / 上传图文 / 上传视频 / 写笔记 / 草稿"）  
+   → 执行 `xhs-publish` 技能。
+
+3. **搜索发现**（"搜索笔记 / 查看详情 / 浏览首页 / 查看用户 / 推荐"）  
+   → 执行 `xhs-explore` 技能。
+
+4. **社交互动**（"评论 / 回复 / 点赞 / 收藏 / 转发"）  
+   → 执行 `xhs-interact` 技能。
+
+5. **复合运营**（"竞品分析 / 热点追踪 / 批量互动 / 一键创作 / 选题分析"）  
+   → 执行 `xhs-content-ops` 技能。
+
+6. **研究桥接**（"导出数据 / 研究分析 / 数据桥接"）  
+   → 执行 `xhs-research-bridge` 技能。
 
 ## 全局约束
 
@@ -57,12 +69,6 @@ description: |
 5. 只有在用户明确说“确认发布 / 发出去”时，才调用 `click-publish`。
 6. 如果用户说“先存草稿”，调用 `save-draft`，不要自动发布。
 
-### 失败处理优先级
-
-1. 如果 CLI 返回 `failure_artifacts`，优先告诉用户日志目录与截图路径。
-2. 如果是页面元素缺失或流程页失效，优先建议重新执行上一步，不要盲目重试发布。
-3. 如果是发布/评论/点赞类动作失败，不要向用户宣称“已成功”，必须如实反馈失败。
-
 ## 子技能概览
 
 ### xhs-auth — 认证管理
@@ -79,79 +85,55 @@ description: |
 
 ### xhs-publish — 内容发布
 
-发布图文或视频内容到小红书。
+图文、视频、长文发布与草稿管理。
 
 | 命令 | 功能 |
 |------|------|
-| `cli.py publish` | 图文发布（本地图片或 URL） |
-| `cli.py publish-video` | 视频发布 |
-| `publish_pipeline.py` | 发布流水线（含图片下载和登录检查） |
+| `fill-publish` | 填写图文表单（不发布，供预览） |
+| `fill-publish-video` | 填写视频表单（不发布，供预览） |
+| `click-publish` | 确认发布（点击发布按钮） |
+| `save-draft` | 保存为草稿 |
+| `long-article` | 长文模式：填写 + 一键排版 |
 
 ### xhs-explore — 内容发现
 
-搜索笔记、查看详情、获取用户资料。
+搜索、浏览、获取详情。
 
 | 命令 | 功能 |
 |------|------|
-| `cli.py list-feeds` | 获取首页推荐 Feed |
-| `cli.py search-feeds` | 关键词搜索笔记 |
-| `cli.py get-feed-detail` | 获取笔记完整内容和评论 |
-| `cli.py user-profile` | 获取用户主页信息 |
+| `search-feeds` | 关键词搜索笔记（支持排序/类型/时间筛选） |
+| `get-feed-detail` | 获取笔记完整内容和评论 |
+| `list-feeds` | 获取首页推荐 Feed |
+| `user-profile` | 获取用户主页信息和帖子列表 |
 
 ### xhs-interact — 社交互动
 
-发表评论、回复、点赞、收藏。
+评论、点赞、收藏等互动操作。
 
 | 命令 | 功能 |
 |------|------|
-| `cli.py post-comment` | 对笔记发表评论 |
-| `cli.py reply-comment` | 回复指定评论 |
-| `cli.py like-feed` | 点赞 / 取消点赞 |
-| `cli.py favorite-feed` | 收藏 / 取消收藏 |
+| `post-comment` | 对笔记发表评论 |
+| `reply-comment` | 回复指定评论 |
+| `like-feed` | 点赞 / 取消点赞 |
+| `favorite-feed` | 收藏 / 取消收藏 |
 
 ### xhs-content-ops — 复合运营
 
-组合多步骤完成运营工作流：竞品分析、热点追踪、内容创作、互动管理。
+批量分析、热点追踪、竞品拆解。
 
-## 快速开始
+| 能力 | 说明 |
+|------|------|
+| 竞品分析 | 搜索竞品账号，分析爆款选题与内容结构 |
+| 热点追踪 | 抓取赛道热词，输出趋势报告 |
+| 批量互动 | 按关键词筛选后批量点赞/收藏/评论 |
+| 内容创作 | 基于分析结果生成标题、正文、标签建议 |
 
-```bash
-# 1. 启动 Chrome
-python scripts/chrome_launcher.py
+### xhs-research-bridge — 研究桥接
 
-# 2. 检查登录状态
-python scripts/cli.py check-login
+数据导出与研究分析支持。
 
-# 3. 登录（如需要）
-python scripts/cli.py login
+## 失败处理优先级
 
-# 4. 搜索笔记
-python scripts/cli.py search-feeds --keyword "关键词"
-
-# 5. 查看笔记详情
-python scripts/cli.py get-feed-detail \
-  --feed-id FEED_ID --xsec-token XSEC_TOKEN
-
-# 6. 发布图文
-python scripts/cli.py publish \
-  --title-file title.txt \
-  --content-file content.txt \
-  --images "/abs/path/pic1.jpg"
-
-# 7. 发表评论
-python scripts/cli.py post-comment \
-  --feed-id FEED_ID \
-  --xsec-token XSEC_TOKEN \
-  --content "评论内容"
-
-# 8. 点赞
-python scripts/cli.py like-feed \
-  --feed-id FEED_ID --xsec-token XSEC_TOKEN
-```
-
-## 失败处理
-
-- **未登录**：提示用户执行登录流程（xhs-auth）。
-- **Chrome 未启动**：使用 `chrome_launcher.py` 启动浏览器。
-- **操作超时**：检查网络连接，适当增加等待时间。
-- **频率限制**：降低操作频率，增大间隔。
+1. 如果 CLI 返回 `failure_artifacts`，优先告诉用户日志目录与截图路径。
+2. 如果是页面元素缺失或流程页失效，优先建议重新执行上一步，不要盲目重试发布。
+3. 如果是发布/评论/点赞类动作失败，不要向用户宣称“已成功”，必须如实反馈失败。

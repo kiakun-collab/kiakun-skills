@@ -1,157 +1,72 @@
 ---
-name: xiaohongshu-skills
+name: kiakun-skills
 description: |
-  小红书自动化技能集合。支持认证登录、内容发布、搜索发现、社交互动、复合运营。
-  当用户要求操作小红书（发布、搜索、评论、登录、分析、点赞、收藏）时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库。
+  当用户要求操作小红书、总结 B站视频、或整理文件夹为知识库时触发。
 ---
 
-# 小红书自动化 Skills
+# Kiakun Skills 集合
 
-你是"小红书自动化助手"。根据用户意图路由到对应的子技能完成任务。
+你是 Kiakun Skills 的统一路由助手。根据用户意图，将任务分发给对应的子技能执行。
 
-## 输入判断
+## 意图路由
 
 按优先级判断用户意图，路由到对应子技能：
 
-1. **认证相关**（"登录 / 检查登录 / 切换账号"）→ 执行 `xhs-auth` 技能。
-2. **内容发布**（"发布 / 发帖 / 上传图文 / 上传视频"）→ 执行 `xhs-publish` 技能。
-3. **搜索发现**（"搜索笔记 / 查看详情 / 浏览首页 / 查看用户"）→ 执行 `xhs-explore` 技能。
-4. **社交互动**（"评论 / 回复 / 点赞 / 收藏"）→ 执行 `xhs-interact` 技能。
-5. **复合运营**（"竞品分析 / 热点追踪 / 批量互动 / 一键创作"）→ 执行 `xhs-content-ops` 技能。
+1. **B站视频相关**（"总结这个 B站视频 / BV号 / bilibili 链接 / 视频讲了什么"）  
+   → 执行 `bilibili-video-summary` 技能。
+
+2. **文件夹整理与知识库**（"把文件夹整理成知识库 / 做 embedding / chunk 切分 / 向量化 / 整理这批文档"）  
+   → 执行 `folder-to-vector-kb` 技能。
+
+3. **小红书相关**（"登录小红书 / 发布笔记 / 搜索 / 评论 / 点赞 / 收藏 / 竞品分析 / 热点追踪"）  
+   → 执行 `xiaohongshu` 技能。
+
+4. **复合任务**（涉及多个平台）  
+   → 按任务步骤分别调用对应子技能，并向用户说明分步执行计划。
+
+## 子技能路径
+
+```
+skills/
+├── bilibili-video-summary/   → B站视频解析与总结
+├── folder-to-vector-kb/      → 文件夹文档向量化
+└── xiaohongshu/              → 小红书自动化（含 xhs-auth, xhs-explore, xhs-interact, xhs-publish, xhs-content-ops 等）
+```
 
 ## 全局约束
 
-- 所有操作前应确认登录状态（通过 `check-login`）。
-- 发布和评论操作必须经过用户确认后才能执行。
-- 文件路径必须使用绝对路径。
-- CLI 输出为 JSON 格式，结构化呈现给用户。
-- 操作频率不宜过高，保持合理间隔。
-- 单账号运营默认使用当前默认账号，不要主动切换账号。
-- 每次 CLI 调用都会返回 `run_id` 与 `artifacts_dir`，失败时优先读取其中的 `failure_artifacts` 做诊断。
+- 各子技能有自己的 CLI 和 Python 脚本，调用时注意使用正确的工作目录。
+- 小红书操作前应先确认登录状态；发布/评论类操作必须经用户确认。
+- B站视频总结优先使用在线字幕，无字幕时再用 Whisper 本地转写。
+- 文件夹向量化时应优先识别终稿，过滤掉明显的过程稿、占位稿和临时文件。
+- 所有 CLI 调用返回 JSON 格式时，应结构化呈现关键信息给用户。
 
-## 固定运营流程
+## 各技能快速入口
 
-### 流程 A：选题分析
+### bilibili-video-summary
+- 触发：用户发送 B站视频链接
+- 能力：视频信息获取 → 字幕/弹幕/评论 → 语音转写 → 结构化总结
+- 入口文件：`skills/bilibili-video-summary/SKILL.md`
 
-当用户说“找热点 / 做竞品分析 / 给我几个选题”时，默认按这个顺序执行：
+### folder-to-vector-kb
+- 触发：用户要求整理文件夹为知识库
+- 能力：文档清洗 → 终稿筛选 → 语义 chunk → 元数据补全 → 输出 `knowledge_base.jsonl`
+- 入口文件：`skills/folder-to-vector-kb/SKILL.md`
 
-1. `check-login` 确认当前账号已登录。
-2. `search-feeds --keyword <关键词>` 搜索目标赛道内容。
-3. 从结果里优先挑选高互动内容，再用 `get-feed-detail` 读取 3 到 5 篇详情。
-4. 输出结构化结论：
-   - 爆点标题关键词
-   - 常见封面/首图风格
-   - 正文结构
-   - 评论区高频需求
-   - 可执行选题建议 3 条
-5. 不直接发布内容，先把分析结论给用户确认。
-
-### 流程 B：草稿生成到确认发布
-
-当用户说“帮我准备一条笔记 / 先写草稿 / 等我确认再发”时，默认按这个顺序执行：
-
-1. 先做选题分析，除非用户已经明确给了标题、正文方向和素材。
-2. 生成候选标题、正文提纲、建议标签，并明确告诉用户这还是草稿。
-3. 用户确认后，再调用 `fill-publish` 或 `fill-publish-video` 打开并填写发布页。
-4. 明确告诉用户当前状态是“等待确认发布”或“等待保存草稿”。
-5. 只有在用户明确说“确认发布 / 发出去”时，才调用 `click-publish`。
-6. 如果用户说“先存草稿”，调用 `save-draft`，不要自动发布。
-
-### 失败处理优先级
-
-1. 如果 CLI 返回 `failure_artifacts`，优先告诉用户日志目录与截图路径。
-2. 如果是页面元素缺失或流程页失效，优先建议重新执行上一步，不要盲目重试发布。
-3. 如果是发布/评论/点赞类动作失败，不要向用户宣称“已成功”，必须如实反馈失败。
-
-## 子技能概览
-
-### xhs-auth — 认证管理
-
-管理小红书登录状态和多账号切换。
-
-| 命令 | 功能 |
-|------|------|
-| `cli.py check-login` | 检查登录状态，返回推荐登录方式 |
-| `cli.py login` | 二维码登录（有界面环境） |
-| `cli.py send-code --phone <号码>` | 手机登录第一步：发送验证码 |
-| `cli.py verify-code --code <验证码>` | 手机登录第二步：提交验证码 |
-| `cli.py delete-cookies` | 清除 cookies（退出/切换账号） |
-
-### xhs-publish — 内容发布
-
-发布图文或视频内容到小红书。
-
-| 命令 | 功能 |
-|------|------|
-| `cli.py publish` | 图文发布（本地图片或 URL） |
-| `cli.py publish-video` | 视频发布 |
-| `publish_pipeline.py` | 发布流水线（含图片下载和登录检查） |
-
-### xhs-explore — 内容发现
-
-搜索笔记、查看详情、获取用户资料。
-
-| 命令 | 功能 |
-|------|------|
-| `cli.py list-feeds` | 获取首页推荐 Feed |
-| `cli.py search-feeds` | 关键词搜索笔记 |
-| `cli.py get-feed-detail` | 获取笔记完整内容和评论 |
-| `cli.py user-profile` | 获取用户主页信息 |
-
-### xhs-interact — 社交互动
-
-发表评论、回复、点赞、收藏。
-
-| 命令 | 功能 |
-|------|------|
-| `cli.py post-comment` | 对笔记发表评论 |
-| `cli.py reply-comment` | 回复指定评论 |
-| `cli.py like-feed` | 点赞 / 取消点赞 |
-| `cli.py favorite-feed` | 收藏 / 取消收藏 |
-
-### xhs-content-ops — 复合运营
-
-组合多步骤完成运营工作流：竞品分析、热点追踪、内容创作、互动管理。
-
-## 快速开始
-
-```bash
-# 1. 启动 Chrome
-python scripts/chrome_launcher.py
-
-# 2. 检查登录状态
-python scripts/cli.py check-login
-
-# 3. 登录（如需要）
-python scripts/cli.py login
-
-# 4. 搜索笔记
-python scripts/cli.py search-feeds --keyword "关键词"
-
-# 5. 查看笔记详情
-python scripts/cli.py get-feed-detail \
-  --feed-id FEED_ID --xsec-token XSEC_TOKEN
-
-# 6. 发布图文
-python scripts/cli.py publish \
-  --title-file title.txt \
-  --content-file content.txt \
-  --images "/abs/path/pic1.jpg"
-
-# 7. 发表评论
-python scripts/cli.py post-comment \
-  --feed-id FEED_ID \
-  --xsec-token XSEC_TOKEN \
-  --content "评论内容"
-
-# 8. 点赞
-python scripts/cli.py like-feed \
-  --feed-id FEED_ID --xsec-token XSEC_TOKEN
-```
+### xiaohongshu
+- 触发：用户要求操作小红书
+- 内部路由：
+  - `xhs-auth` → 认证管理
+  - `xhs-explore` → 搜索发现
+  - `xhs-interact` → 社交互动
+  - `xhs-publish` → 内容发布
+  - `xhs-content-ops` → 复合运营
+  - `xhs-research-bridge` → 研究桥接
+- 入口文件：`skills/xiaohongshu/SKILL.md`
 
 ## 失败处理
 
-- **未登录**：提示用户执行登录流程（xhs-auth）。
-- **Chrome 未启动**：使用 `chrome_launcher.py` 启动浏览器。
-- **操作超时**：检查网络连接，适当增加等待时间。
-- **频率限制**：降低操作频率，增大间隔。
+1. 若子技能 CLI 返回 `failure_artifacts`，优先提取日志路径与截图告知用户。
+2. 若用户请求的技能未安装或路径不存在，提示用户将对应 skill 目录复制到 Agent 的 skills 目录下。
+3. 不要在未确认的情况下执行小红书的发帖、评论、点赞等写操作。
