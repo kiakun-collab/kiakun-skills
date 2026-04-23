@@ -1,0 +1,4 @@
+interface:
+  display_name: "CC Switch Claude Setup"
+  short_description: "One-click third-party Claude API setup via CC Switch"
+  default_prompt: "Use $cc-switch-claude-provider to configure Claude Code with my base URL and API key via CC Switch."

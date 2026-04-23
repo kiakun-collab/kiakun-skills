@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库。
-  当用户要求操作小红书、总结 B站视频、或整理文件夹为知识库时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、Claude Code 第三方 API 配置。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、或通过 CC Switch 配置 Claude Code API 时触发。
 ---
 
 # Kiakun Skills 集合
@@ -25,11 +25,15 @@ description: |
 4. **复合任务**（涉及多个平台）  
    → 按任务步骤分别调用对应子技能，并向用户说明分步执行计划。
 
+5. **Claude Code 第三方 API 配置**（"用 CC Switch 配置 Claude Code / base URL + key / 切换 Claude provider / 第三方 Claude API"）  
+   → 执行 `cc-switch-claude-provider` 技能。
+
 ## 子技能路径
 
 ```
 skills/
 ├── bilibili-video-summary/   → B站视频解析与总结
+├── cc-switch-claude-provider/ → CC Switch Claude Code 第三方 API 配置
 ├── folder-to-vector-kb/      → 文件夹文档向量化
 └── xiaohongshu/              → 小红书自动化（含 xhs-auth, xhs-explore, xhs-interact, xhs-publish, xhs-content-ops 等）
 ```
@@ -53,6 +57,11 @@ skills/
 - 触发：用户要求整理文件夹为知识库
 - 能力：文档清洗 → 终稿筛选 → 语义 chunk → 元数据补全 → 输出 `knowledge_base.jsonl`
 - 入口文件：`skills/folder-to-vector-kb/SKILL.md`
+
+### cc-switch-claude-provider
+- 触发：用户提供 Claude-compatible `base URL` 和 API key，要求让 Claude Code 直接可用
+- 能力：写入 CC Switch provider → 切换当前 Claude provider → 同步 Claude Code 配置 → 冒烟测试
+- 入口文件：`skills/cc-switch-claude-provider/SKILL.md`
 
 ### xiaohongshu
 - 触发：用户要求操作小红书
