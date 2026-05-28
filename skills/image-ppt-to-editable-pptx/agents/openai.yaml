@@ -1,0 +1,4 @@
+interface:
+  display_name: "Image PPT to Editable PPTX"
+  short_description: "Recreate image-only PPT references as editable PowerPoint decks."
+  default_prompt: "Convert these image-only PPT slides into an editable PPTX. Ask for the target font if I did not specify one."
