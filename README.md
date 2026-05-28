@@ -14,6 +14,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **bilibili-video-summary** | `skills/bilibili-video-summary/` | B站视频总结 | 链接解析、字幕/弹幕/评论提取、Whisper 语音转写、结构化总结 |
 | **folder-to-vector-kb** | `skills/folder-to-vector-kb/` | 文件夹向量化 | 批量文档清洗、语义 chunk 切分、元数据补全、输出 `knowledge_base.jsonl` |
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
+| **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
 
 ---
 
@@ -47,6 +48,7 @@ uv sync
 cp -r skills/xiaohongshu ~/.claude/skills/
 cp -r skills/bilibili-video-summary ~/.claude/skills/
 cp -r skills/cc-switch-claude-provider ~/.claude/skills/
+cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
 
 # OpenClaw 示例
 cp -r skills/xiaohongshu <openclaw-project>/skills/
@@ -85,6 +87,9 @@ kiakun-skills/
     │   ├── SKILL.md           # CC Switch Claude Code 第三方 API 配置
     │   ├── agents/
     │   └── scripts/
+    ├── image-ppt-to-editable-pptx/
+    │   ├── SKILL.md           # 图片型 PPT 可编辑复刻
+    │   └── agents/
     └── folder-to-vector-kb/
         └── SKILL.md           # 文件夹向量化知识库
 ```
@@ -148,6 +153,17 @@ kiakun-skills/
 > "用 CC Switch 帮我配置 Claude Code，base url 是 https://example.com/api，key 是 sk-xxx。"
 
 详见 `skills/cc-switch-claude-provider/SKILL.md`。
+
+---
+
+### image-ppt-to-editable-pptx（图片型 PPT 可编辑复刻）
+
+将图片型 PPT、页面截图或栅格化演示稿参考图重建为可编辑 `.pptx`，强调普通文字文本框化、PPT 原生形状、单一矩形占位图、页面背景格式、参数化字体与导出后重新导入渲染检查。
+
+**典型用法：**
+> "把这几张图片型 PPT 复刻成可编辑 PPTX，字体用腾讯体w7。"
+
+详见 `skills/image-ppt-to-editable-pptx/SKILL.md`。
 
 ---
 
