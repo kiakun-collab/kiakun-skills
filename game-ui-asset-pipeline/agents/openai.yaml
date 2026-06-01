@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game UI Asset Pipeline"
+  short_description: "Generate clean game UI assets for Godot"
+  default_prompt: "Use $game-ui-asset-pipeline to generate and import a lightweight anime UI icon sheet for my Godot game."
