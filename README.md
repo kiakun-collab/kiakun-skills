@@ -15,6 +15,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **folder-to-vector-kb** | `skills/folder-to-vector-kb/` | 文件夹向量化 | 批量文档清洗、语义 chunk 切分、元数据补全、输出 `knowledge_base.jsonl` |
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
+| **game-ui-asset-pipeline** | `skills/game-ui-asset-pipeline/` | 游戏 UI 资产流水线 | 生成、清理、切片、验证并导入 Godot 游戏 UI 图标、HUD glyph、九宫格面板和按钮皮肤 |
 
 ---
 
@@ -49,6 +50,7 @@ cp -r skills/xiaohongshu ~/.claude/skills/
 cp -r skills/bilibili-video-summary ~/.claude/skills/
 cp -r skills/cc-switch-claude-provider ~/.claude/skills/
 cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
+cp -r skills/game-ui-asset-pipeline ~/.claude/skills/
 
 # OpenClaw 示例
 cp -r skills/xiaohongshu <openclaw-project>/skills/
@@ -90,6 +92,11 @@ kiakun-skills/
     ├── image-ppt-to-editable-pptx/
     │   ├── SKILL.md           # 图片型 PPT 可编辑复刻
     │   └── agents/
+    ├── game-ui-asset-pipeline/
+    │   ├── SKILL.md           # 游戏 UI 资产流水线
+    │   ├── agents/
+    │   ├── references/
+    │   └── scripts/
     └── folder-to-vector-kb/
         └── SKILL.md           # 文件夹向量化知识库
 ```
@@ -164,6 +171,22 @@ kiakun-skills/
 > "把这几张图片型 PPT 复刻成可编辑 PPTX，字体用腾讯体w7。"
 
 详见 `skills/image-ppt-to-editable-pptx/SKILL.md`。
+
+---
+
+### game-ui-asset-pipeline（游戏 UI 资产流水线）
+
+将 AI 生成的游戏 UI 位图整理成可用于 Godot 的生产资产，强调由 AI 负责视觉风格、脚本负责几何切片、Godot 负责文字布局和交互。
+
+**核心能力：**
+- 图标表、菜品/素材图标、HUD glyph、按钮皮肤和装饰组件的风格约束
+- chroma-key 抠图、固定网格切片、透明边缘和 alpha 验证
+- Godot `res://` 路径、Theme、`TextureRect`、`StyleBoxTexture` 与九宫格导入规则
+
+**典型用法：**
+> "用 game-ui-asset-pipeline 帮我给 Godot 餐厅游戏生成一套轻量动漫风 HUD 图标表，并切片导入。"
+
+详见 `skills/game-ui-asset-pipeline/SKILL.md`。
 
 ---
 

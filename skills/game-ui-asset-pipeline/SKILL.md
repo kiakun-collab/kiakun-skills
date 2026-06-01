@@ -38,7 +38,7 @@ Never bake Chinese text, numbers, prices, labels, dynamic icons, or button copy 
 For fixed-grid icon sheets, use the bundled script:
 
 ```bash
-python game-ui-asset-pipeline/scripts/slice_sprite_sheet.py \
+python skills/game-ui-asset-pipeline/scripts/slice_sprite_sheet.py \
   --input /abs/path/sheet_cutout.png \
   --out /abs/path/final_icons \
   --cols 6 --rows 3 \

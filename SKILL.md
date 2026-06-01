@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、Claude Code 第三方 API 配置、图片型 PPT 可编辑复刻。
-  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、通过 CC Switch 配置 Claude Code API、或将图片/截图型 PPT 复刻为可编辑 PPTX 时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、Claude Code 第三方 API 配置、图片型 PPT 可编辑复刻、游戏 UI 资产流水线。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、通过 CC Switch 配置 Claude Code API、将图片/截图型 PPT 复刻为可编辑 PPTX，或生成、切片、验证、导入 Godot 游戏 UI 资产时触发。
 ---
 
 # Kiakun Skills 集合
@@ -28,8 +28,11 @@ description: |
 5. **Claude Code 第三方 API 配置**（"用 CC Switch 配置 Claude Code / base URL + key / 切换 Claude provider / 第三方 Claude API"）  
    → 执行 `cc-switch-claude-provider` 技能。
 
-6. **图片型 PPT 可编辑复刻**（"图片型 PPT / PPT 截图 / 复刻为可编辑 PPTX / 字体 / 占位图 / 背景格式 / 导出后检查"）  
+6. **图片型 PPT 可编辑复刻**（"图片型 PPT / PPT 截图 / 复刻为可编辑 PPTX / 字体 / 占位图 / 背景格式 / 导出后检查"）
    → 执行 `image-ppt-to-editable-pptx` 技能。
+
+7. **游戏 UI 资产流水线**（"游戏 UI / Godot UI / icon sheet / HUD glyph / 九宫格面板 / UI 皮肤 / 切片导入"）
+   → 执行 `game-ui-asset-pipeline` 技能。
 
 ## 子技能路径
 
@@ -38,6 +41,7 @@ skills/
 ├── bilibili-video-summary/   → B站视频解析与总结
 ├── cc-switch-claude-provider/ → CC Switch Claude Code 第三方 API 配置
 ├── folder-to-vector-kb/      → 文件夹文档向量化
+├── game-ui-asset-pipeline/   → 游戏 UI 资产生成、切片、验证与 Godot 导入
 ├── image-ppt-to-editable-pptx/ → 图片型 PPT 可编辑复刻
 └── xiaohongshu/              → 小红书自动化（含 xhs-auth, xhs-explore, xhs-interact, xhs-publish, xhs-content-ops 等）
 ```
@@ -71,6 +75,11 @@ skills/
 - 触发：用户提供图片型 PPT、PPT 截图或参考页图片，要求复刻为可编辑 `.pptx`
 - 能力：字体参数化 → 普通文字文本框化 → 原生形状重建 → 单形状截图占位 → PPT 背景格式 → 导出后重新导入/渲染/包内 QA
 - 入口文件：`skills/image-ppt-to-editable-pptx/SKILL.md`
+
+### game-ui-asset-pipeline
+- 触发：用户要求生成、清理、切片、验证或导入游戏 UI 位图资产，尤其是 Godot 项目的 icon sheet、HUD glyph、九宫格面板、按钮皮肤和轻量动漫风 UI 装饰
+- 能力：视觉风格约束 → chroma-key 抠图 → 固定网格切片 → alpha 验证 → Godot `res://` 导入与截图检查
+- 入口文件：`skills/game-ui-asset-pipeline/SKILL.md`
 
 ### xiaohongshu
 - 触发：用户要求操作小红书
