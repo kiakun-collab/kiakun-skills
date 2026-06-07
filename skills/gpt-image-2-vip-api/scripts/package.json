@@ -1,0 +1,8 @@
+{
+  "name": "gpt-image-2-vip-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test shared.test.js"
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "GPT Image 2 VIP API"
+  short_description: "Generate and edit high-detail 2K/4K images"
+  default_prompt: "Use $gpt-image-2-vip-api to generate a high-detail image through the configured VIP API."
