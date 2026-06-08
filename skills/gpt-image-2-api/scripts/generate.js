@@ -17,6 +17,7 @@ import {
   saveImage,
   savePrompt,
   slugify,
+  summarizeSavedImages,
 } from "./shared.js";
 
 function help() {
@@ -92,28 +93,41 @@ async function run() {
   const hint = slugify(prompt.split(/\s+/).slice(0, 8).join(" "), "generated-image");
   const promptPath = await savePrompt(prompt, config.promptOutput, hint);
   const outputPath = resolveOutput(config.output, buildDefaultImagePath("generate", hint));
-  const response = await postJson(
-    plan.endpoint,
-    buildApiPayload(options, {
-      prompt,
-      n: options.n,
-      response_format: "b64_json",
-    }),
-  );
-  const images = await extractGeneratedImages(response);
+  const images = [];
+  const responseSummaries = [];
+  while (images.length < options.n) {
+    const remaining = options.n - images.length;
+    const response = await postJson(
+      plan.endpoint,
+      buildApiPayload(options, {
+        prompt,
+        n: remaining,
+        response_format: "b64_json",
+      }),
+    );
+    const batch = await extractGeneratedImages(response);
+    images.push(...batch.slice(0, remaining));
+    responseSummaries.push(responseSummary(response));
+  }
   const savedImages = [];
   for (let index = 0; index < images.length; index += 1) {
     const imagePath = addOutputIndex(outputPath, index, images.length);
     await saveImage(imagePath, images[index]);
     savedImages.push(imagePath);
   }
+  const imageSummary = summarizeSavedImages(images, savedImages, options.size);
 
   if (config.json) {
     return printJson({
       ...plan,
       savedImages,
       savedPrompt: promptPath,
-      apiResponse: responseSummary(response),
+      ...imageSummary,
+      apiResponse: {
+        requestCount: responseSummaries.length,
+        imageCount: images.length,
+        responses: responseSummaries,
+      },
     });
   }
   console.log(savedImages.join("\n"));

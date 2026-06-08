@@ -7,7 +7,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { resolveImageOptions } from "./shared.js";
+import { imageMetadata, readPromptInput, resolveImageOptions } from "./shared.js";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PNG = Buffer.from(
@@ -110,6 +110,23 @@ test("conflicting explicit profile and model are rejected", () => {
   );
 });
 
+test("reads PNG metadata for saved output verification", () => {
+  assert.deepEqual(imageMetadata(PNG), {
+    format: "png",
+    width: 1,
+    height: 1,
+    bytes: PNG.length,
+  });
+});
+
+test("requires exactly one prompt source", async () => {
+  await assert.rejects(() => readPromptInput(), /exactly one prompt source/);
+  await assert.rejects(
+    () => readPromptInput("inline prompt", "prompt.md"),
+    /exactly one prompt source/,
+  );
+});
+
 test("dry-run explains routing without an API key", async () => {
   const cwd = await mkdtemp(path.join(tmpdir(), "image-dry-run-"));
   try {
@@ -178,6 +195,126 @@ test("standard generation omits quality and saves every image", async () => {
     assert.equal(body.response_format, "b64_json");
     assert.deepEqual(await readFile(path.join(cwd, "result-1.png")), PNG);
     assert.deepEqual(await readFile(path.join(cwd, "result-2.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("generation fills missing images when the gateway ignores n", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "generation-backfill-"));
+  let requestCount = 0;
+  try {
+    await withGateway(
+      async (request, response) => {
+        requestCount += 1;
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        assert.equal(body.n, 3 - requestCount);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      (baseUrl) =>
+        runNode(
+          "generate.js",
+          [
+            "--prompt",
+            "three images",
+            "--n",
+            "2",
+            "--output",
+            "result.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
+          cwd,
+          testEnv(baseUrl),
+        ),
+    );
+    assert.equal(requestCount, 2);
+    assert.deepEqual(await readFile(path.join(cwd, "result-1.png")), PNG);
+    assert.deepEqual(await readFile(path.join(cwd, "result-2.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("generation retries 429 and then succeeds", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "generation-retry-"));
+  let requestCount = 0;
+  try {
+    await withGateway(
+      async (request, response) => {
+        requestCount += 1;
+        for await (const _chunk of request) {
+          // Drain the request body before responding.
+        }
+        if (requestCount === 1) {
+          response.writeHead(429, {
+            "content-type": "application/json",
+            "retry-after": "0",
+          });
+          response.end(JSON.stringify({ error: { message: "rate limited" } }));
+          return;
+        }
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      (baseUrl) =>
+        runNode(
+          "generate.js",
+          [
+            "--prompt",
+            "retry image",
+            "--output",
+            "result.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
+          cwd,
+          { ...testEnv(baseUrl), OPENAI_IMAGE_MAX_RETRIES: "1" },
+        ),
+    );
+    assert.equal(requestCount, 2);
+    assert.deepEqual(await readFile(path.join(cwd, "result.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("generation does not retry a 400 response", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "generation-no-retry-"));
+  let requestCount = 0;
+  try {
+    await assert.rejects(
+      () =>
+        withGateway(
+          async (request, response) => {
+            requestCount += 1;
+            for await (const _chunk of request) {
+              // Drain the request body before responding.
+            }
+            response.writeHead(400, { "content-type": "application/json" });
+            response.end(JSON.stringify({ error: { message: "invalid parameters" } }));
+          },
+          (baseUrl) =>
+            runNode(
+              "generate.js",
+              [
+                "--prompt",
+                "invalid image",
+                "--output",
+                "result.png",
+                "--prompt-output",
+                "prompt.md",
+              ],
+              cwd,
+              { ...testEnv(baseUrl), OPENAI_IMAGE_MAX_RETRIES: "2" },
+            ),
+        ),
+      /Image API error \(400\): invalid parameters/,
+    );
+    assert.equal(requestCount, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -256,6 +393,50 @@ test("single-reference edit uses standard model", async () => {
     );
     assert.match(multipart, /name="model"\r\n\r\ngpt-image-2/);
     assert.doesNotMatch(multipart, /name="quality"/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("URL-reference edit downloads the image and uploads multipart", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "url-edit-"));
+  let multipart = "";
+  try {
+    await withGateway(
+      async (request, response) => {
+        if (request.method === "GET" && request.url === "/reference.png") {
+          response.writeHead(200, { "content-type": "image/png" });
+          response.end(PNG);
+          return;
+        }
+        assert.equal(request.method, "POST");
+        assert.equal(request.url, "/v1/images/edits");
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        multipart = Buffer.concat(chunks).toString("latin1");
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      (baseUrl) =>
+        runNode(
+          "edit.js",
+          [
+            "--url",
+            `${baseUrl}/reference.png`,
+            "--prompt",
+            "change style",
+            "--output",
+            "edited.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
+          cwd,
+          testEnv(baseUrl),
+        ),
+    );
+    assert.match(multipart, /name="image"; filename="reference.png"/);
+    assert.match(multipart, /name="model"\r\n\r\ngpt-image-2/);
+    assert.doesNotMatch(multipart, /name="urls"/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

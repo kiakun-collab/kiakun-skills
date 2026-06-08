@@ -253,9 +253,11 @@ export function buildApiPayload(options, extra = {}) {
 }
 
 export async function readPromptInput(prompt, promptFile) {
+  if (Boolean(prompt) === Boolean(promptFile)) {
+    throw new Error("Provide exactly one prompt source: --prompt or --promptfile.");
+  }
   if (prompt) return prompt.trim();
-  if (promptFile) return (await readFile(path.resolve(promptFile), "utf8")).trim();
-  throw new Error("Prompt is required. Use --prompt or --promptfile.");
+  return (await readFile(path.resolve(promptFile), "utf8")).trim();
 }
 
 export function slugify(value, fallback = "image-task") {
@@ -317,6 +319,70 @@ export async function savePrompt(prompt, rawPath, hint) {
 export async function saveImage(outputPath, bytes) {
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, bytes);
+}
+
+export function imageMetadata(bytes) {
+  if (
+    bytes.length >= 24 &&
+    bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  ) {
+    return {
+      format: "png",
+      width: bytes.readUInt32BE(16),
+      height: bytes.readUInt32BE(20),
+      bytes: bytes.length,
+    };
+  }
+
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      const marker = bytes[offset + 1];
+      const length = bytes.readUInt16BE(offset + 2);
+      if (marker >= 0xc0 && marker <= 0xc3) {
+        return {
+          format: "jpeg",
+          width: bytes.readUInt16BE(offset + 7),
+          height: bytes.readUInt16BE(offset + 5),
+          bytes: bytes.length,
+        };
+      }
+      if (length < 2) break;
+      offset += 2 + length;
+    }
+  }
+
+  return { format: "unknown", width: null, height: null, bytes: bytes.length };
+}
+
+export function summarizeSavedImages(images, paths, requestedSize) {
+  const expected = /^(\d+)x(\d+)$/.exec(requestedSize || "");
+  const expectedWidth = expected ? Number(expected[1]) : null;
+  const expectedHeight = expected ? Number(expected[2]) : null;
+  const actualImages = images.map((bytes, index) => ({
+    path: paths[index],
+    ...imageMetadata(bytes),
+  }));
+  const mismatches =
+    expectedWidth === null
+      ? []
+      : actualImages.filter(
+          (image) =>
+            image.width !== null &&
+            (image.width !== expectedWidth || image.height !== expectedHeight),
+        );
+  return {
+    actualImages,
+    requestedSizeMatched: expectedWidth === null ? null : mismatches.length === 0,
+    warnings: mismatches.map(
+      (image) =>
+        `Gateway returned ${image.width}x${image.height} for requested ${requestedSize}: ${image.path}`,
+    ),
+  };
 }
 
 export function mimeFor(filePath) {
@@ -422,6 +488,37 @@ export function postMultipart(url, form) {
     headers: { authorization: `Bearer ${apiKey}` },
     body: form,
   }));
+}
+
+export async function downloadReferenceImage(rawUrl) {
+  let url;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error(`Reference URL is invalid: ${rawUrl}`);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(`Reference URL must use http or https: ${rawUrl}`);
+  }
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download reference image (${response.status}): ${rawUrl}`);
+  }
+  const contentType = (response.headers.get("content-type") || "").split(";")[0].trim();
+  if (!["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
+    throw new Error(
+      `Reference URL must return PNG, JPEG, or WebP, received ${contentType || "unknown"}: ${rawUrl}`,
+    );
+  }
+  const extension =
+    contentType === "image/png" ? ".png" : contentType === "image/webp" ? ".webp" : ".jpg";
+  const basename = path.basename(url.pathname);
+  const filename = basename && path.extname(basename) ? basename : `reference${extension}`;
+  return {
+    bytes: Buffer.from(await response.arrayBuffer()),
+    contentType,
+    filename,
+  };
 }
 
 async function downloadImage(url) {

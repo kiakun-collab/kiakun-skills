@@ -15,7 +15,7 @@ Source: `https://9nnc8eo3c5.apifox.cn/8671595m0.md` (updated 2026-04-30).
 |---|---|---|---|
 | Text-to-image | POST | `/v1/images/generations` | JSON |
 | Local reference edit | POST | `/v1/images/edits` | multipart form |
-| Public URL reference edit | POST | `/v1/images/edits` | JSON |
+| Public URL reference edit | POST | `/v1/images/edits` | Script downloads URLs and uploads multipart |
 
 Authentication:
 
@@ -41,7 +41,7 @@ Authorization: Bearer <OPENAI_API_KEY>
 | `model` | string | Yes | Standard or VIP |
 | `prompt` | string | Yes | Edit instruction |
 | `image` | file | For multipart | PNG, JPEG, or WebP; repeatable |
-| `urls` | string[] | For JSON | Publicly accessible URLs; gateway extension |
+| `urls` | string[] | Documented gateway extension | Do not send directly; live testing found the gateway expects multipart |
 | `size` | string | No | Pixel dimensions or ratio |
 | `quality` | string | No | VIP only |
 
@@ -110,6 +110,8 @@ Quality controls sampling detail, not resolution. Select resolution with `size`.
 ```
 
 The scripts decode every `data[]` item to PNG and also accept `data[].url` for compatibility.
+Live testing found that the gateway may ignore `n > 1` and return one image. The generation script
+automatically makes follow-up requests until it has saved the requested number of images.
 
 ## Errors
 

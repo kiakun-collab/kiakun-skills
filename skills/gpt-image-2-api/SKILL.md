@@ -13,7 +13,7 @@ Follow this workflow exactly. Do not inspect scripts to discover usage.
 |---|---|
 | Create an image from text | `node scripts/generate.js ...` |
 | Edit using local reference files | `node scripts/edit.js --image ...` |
-| Edit using public image URLs | `node scripts/edit.js --url ...` |
+| Edit using public image URLs | `node scripts/edit.js --url ...` (downloads, then uploads multipart) |
 
 API routes are fixed:
 
@@ -137,6 +137,8 @@ Common:
 Generate only:
 
 - `--n <integer>`: number of images; default `1`.
+- If the gateway returns fewer images than `--n`, the script automatically sends follow-up requests
+  until the requested count is reached.
 
 VIP only:
 
@@ -156,6 +158,8 @@ gpt-image-2-output/
 ```
 
 All returned paths are absolute in `--json` output. When `--n > 1`, append `-1`, `-2`, and so on.
+Structured output also reports each image's actual dimensions and warns when the gateway returns a
+different pixel size from the request.
 
 ## 7. Configuration
 

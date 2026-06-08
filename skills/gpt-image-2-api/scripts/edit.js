@@ -7,11 +7,11 @@ import {
   appendFormValue,
   buildApiPayload,
   buildDefaultImagePath,
+  downloadReferenceImage,
   ensureFilesExist,
   extractGeneratedImages,
   loadAmbientEnv,
   mimeFor,
-  postJson,
   postMultipart,
   printJson,
   publicPlan,
@@ -22,6 +22,7 @@ import {
   saveImage,
   savePrompt,
   slugify,
+  summarizeSavedImages,
 } from "./shared.js";
 
 function help() {
@@ -89,9 +90,9 @@ function parseArgs(argv) {
 }
 
 async function requestEdit(config, prompt, options, endpoint) {
+  const form = new FormData();
   if (config.images.length > 0) {
     await ensureFilesExist(config.images);
-    const form = new FormData();
     for (const imagePath of config.images) {
       const bytes = await readFile(imagePath);
       form.append(
@@ -100,18 +101,20 @@ async function requestEdit(config, prompt, options, endpoint) {
         imagePath.split(/[\\/]/).pop(),
       );
     }
-    const payload = buildApiPayload(options, { prompt });
-    for (const [key, value] of Object.entries(payload)) appendFormValue(form, key, value);
-    return postMultipart(endpoint, form);
+  } else {
+    for (const rawUrl of config.urls) {
+      const reference = await downloadReferenceImage(rawUrl);
+      form.append(
+        "image",
+        new Blob([reference.bytes], { type: reference.contentType }),
+        reference.filename,
+      );
+    }
   }
 
-  return postJson(
-    endpoint,
-    buildApiPayload(options, {
-      prompt,
-      urls: config.urls,
-    }),
-  );
+  const payload = buildApiPayload(options, { prompt });
+  for (const [key, value] of Object.entries(payload)) appendFormValue(form, key, value);
+  return postMultipart(endpoint, form);
 }
 
 async function run() {
@@ -145,12 +148,14 @@ async function run() {
     await saveImage(imagePath, images[index]);
     savedImages.push(imagePath);
   }
+  const imageSummary = summarizeSavedImages(images, savedImages, options.size);
 
   if (config.json) {
     return printJson({
       ...plan,
       savedImages,
       savedPrompt: promptPath,
+      ...imageSummary,
       apiResponse: responseSummary(response),
     });
   }
