@@ -16,7 +16,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
 | **game-ui-asset-pipeline** | `skills/game-ui-asset-pipeline/` | 游戏 UI 资产流水线 | 生成、清理、切片、验证并导入 Godot 游戏 UI 图标、HUD glyph、九宫格面板和按钮皮肤 |
-| **gpt-image-2-vip-api** | `skills/gpt-image-2-vip-api/` | GPT Image 2 VIP API | 默认 VIP + 2K + high，支持文本生图、本地/URL 多参考图编辑和 4K 输出 |
+| **gpt-image-2-api** | `skills/gpt-image-2-api/` | GPT Image 2 API | 日常默认标准版，复杂、高精度、多参考图或 2K/4K 时自动/显式升级 VIP |
 
 ---
 
@@ -52,7 +52,7 @@ cp -r skills/bilibili-video-summary ~/.claude/skills/
 cp -r skills/cc-switch-claude-provider ~/.claude/skills/
 cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
 cp -r skills/game-ui-asset-pipeline ~/.claude/skills/
-cp -r skills/gpt-image-2-vip-api ~/.claude/skills/
+cp -r skills/gpt-image-2-api ~/.claude/skills/
 
 # OpenClaw 示例
 cp -r skills/xiaohongshu <openclaw-project>/skills/
@@ -99,8 +99,8 @@ kiakun-skills/
     │   ├── agents/
     │   ├── references/
     │   └── scripts/
-    ├── gpt-image-2-vip-api/
-    │   ├── SKILL.md           # GPT Image 2 VIP 直接 API 生图与编辑
+    ├── gpt-image-2-api/
+    │   ├── SKILL.md           # GPT Image 2 成本感知 API 生图与编辑
     │   ├── agents/
     │   ├── references/
     │   └── scripts/
@@ -197,14 +197,14 @@ kiakun-skills/
 
 ---
 
-### gpt-image-2-vip-api（GPT Image 2 VIP API）
+### gpt-image-2-api（GPT Image 2 API）
 
-通过 OpenAI-compatible 图片接口直接生成或编辑高精度图片，默认使用 `gpt-image-2-vip`、`2048x2048` 和 `quality=high`。支持多张本地参考图、公开 URL 参考图、2K/4K 尺寸、多图保存、超时与自动重试。真实 API Key 仅在运行时通过环境变量或本机 `.env/.gateway.env` 提供，不存入 skill。
+通过 OpenAI-compatible 图片接口生成或编辑图片。日常任务默认使用成本更低的 `gpt-image-2` 和 1K 输出；复杂信息图、高精度内容、多个参考图或 2K/4K 请求使用 `gpt-image-2-vip`。提供 `--dry-run` 路由预览、清晰的生成/编辑路径、参数校验、多图保存、超时与自动重试。
 
 **典型用法：**
-> "用 gpt-image-2-vip 生成一张 3840x2160 的高精度产品海报。"
+> "生成一张日常社交配图；如果是复杂信息图或 4K 海报，再自动使用 VIP。"
 
-详见 `skills/gpt-image-2-vip-api/SKILL.md`。
+详见 `skills/gpt-image-2-api/SKILL.md`。
 
 ---
 

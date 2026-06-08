@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、Claude Code 第三方 API 配置、GPT Image 2 VIP API 生图、图片型 PPT 可编辑复刻、游戏 UI 资产流水线。
-  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、通过 CC Switch 配置 Claude Code API、通过 gpt-image-2-vip API 生成或编辑 2K/4K 图片、将图片/截图型 PPT 复刻为可编辑 PPTX，或生成、切片、验证、导入 Godot 游戏 UI 资产时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、游戏 UI 资产流水线。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX，或生成、切片、验证、导入 Godot 游戏 UI 资产时触发。
 ---
 
 # Kiakun Skills 集合
@@ -34,8 +34,8 @@ description: |
 7. **游戏 UI 资产流水线**（"游戏 UI / Godot UI / icon sheet / HUD glyph / 九宫格面板 / UI 皮肤 / 切片导入"）
    → 执行 `game-ui-asset-pipeline` 技能。
 
-8. **GPT Image 2 VIP API**（"gpt-image-2-vip / API 生图 / 2K 4K 图片 / 参考图编辑 / aifast 图片网关"）
-   → 执行 `gpt-image-2-vip-api` 技能。
+8. **GPT Image 2 API**（"API 生图 / gpt-image-2 / gpt-image-2-vip / 2K 4K 图片 / 参考图编辑 / aifast 图片网关"）
+   → 执行 `gpt-image-2-api` 技能。
 
 ## 子技能路径
 
@@ -45,7 +45,7 @@ skills/
 ├── cc-switch-claude-provider/ → CC Switch Claude Code 第三方 API 配置
 ├── folder-to-vector-kb/      → 文件夹文档向量化
 ├── game-ui-asset-pipeline/   → 游戏 UI 资产生成、切片、验证与 Godot 导入
-├── gpt-image-2-vip-api/      → GPT Image 2 VIP 直接 API 生图与编辑
+├── gpt-image-2-api/          → GPT Image 2 成本感知 API 生图与编辑
 ├── image-ppt-to-editable-pptx/ → 图片型 PPT 可编辑复刻
 └── xiaohongshu/              → 小红书自动化（含 xhs-auth, xhs-explore, xhs-interact, xhs-publish, xhs-content-ops 等）
 ```
@@ -85,10 +85,10 @@ skills/
 - 能力：视觉风格约束 → chroma-key 抠图 → 固定网格切片 → alpha 验证 → Godot `res://` 导入与截图检查
 - 入口文件：`skills/game-ui-asset-pipeline/SKILL.md`
 
-### gpt-image-2-vip-api
-- 触发：用户要求通过 `gpt-image-2-vip` 或 aifast.site 兼容接口生成、编辑 2K/4K 图片
-- 能力：文本生图 → 多参考图编辑 → URL 参考图编辑 → 多图落盘 → 超时与重试
-- 入口文件：`skills/gpt-image-2-vip-api/SKILL.md`
+### gpt-image-2-api
+- 触发：用户要求通过 `gpt-image-2`、`gpt-image-2-vip` 或 aifast.site 兼容接口生成、编辑图片
+- 能力：日常标准版 → 复杂/高精度/VIP → 多参考图自动升级 → 2K/4K → 路由预览
+- 入口文件：`skills/gpt-image-2-api/SKILL.md`
 
 ### xiaohongshu
 - 触发：用户要求操作小红书

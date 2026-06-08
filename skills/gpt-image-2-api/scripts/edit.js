@@ -2,13 +2,10 @@
 import process from "node:process";
 import { readFile } from "node:fs/promises";
 import {
-  DEFAULT_IMAGE_DIR,
-  DEFAULT_MODEL,
-  DEFAULT_QUALITY,
-  DEFAULT_SIZE,
+  DEFAULT_OUTPUT_ROOT,
   addOutputIndex,
   appendFormValue,
-  buildBaseUrl,
+  buildApiPayload,
   buildDefaultImagePath,
   ensureFilesExist,
   extractGeneratedImages,
@@ -17,6 +14,7 @@ import {
   postJson,
   postMultipart,
   printJson,
+  publicPlan,
   readPromptInput,
   resolveImageOptions,
   resolveOutput,
@@ -27,42 +25,55 @@ import {
 } from "./shared.js";
 
 function help() {
-  console.log(`Usage:
+  console.log(`Edit images through POST /v1/images/edits.
+
+Usage:
   node scripts/edit.js --image source.png --prompt "Replace the background"
   node scripts/edit.js --url https://example.com/source.jpg --prompt "Change the style"
 
-Options:
-  --image <path>           Local reference image; repeatable
+Required source (choose one type):
+  --image <path>           Local PNG/JPEG/WebP; repeatable
   --url <url>              Public reference URL; repeatable
-  --prompt <text>          Edit prompt
-  --promptfile <path>      Load prompt from a file
-  --prompt-output <path>   Save prompt to a specific path
-  --output <path>          Output image path (default: ${DEFAULT_IMAGE_DIR}/...)
-  --model <name>           Model (default: ${DEFAULT_MODEL})
-  --size <WxH>             Pixel dimensions (default: ${DEFAULT_SIZE})
-  --quality <level>        auto | low | medium | high (default: ${DEFAULT_QUALITY})
-  --json                   Print structured output without Base64
-  -h, --help               Show help`);
+
+Required prompt input (choose one):
+  --prompt <text>          Edit instructions
+  --promptfile <path>      Load instructions from a UTF-8 file
+
+Routing and image parameters:
+  --profile <name>         auto | standard | vip (default: auto)
+  --model <name>           Explicit gpt-image-2 or gpt-image-2-vip override
+  --size <value>           Pixel size or ratio supported by the selected model
+  --quality <level>        VIP only: auto | low | medium | high
+
+Output:
+  --output <path>          Image path (default: ${DEFAULT_OUTPUT_ROOT}/edited/...)
+  --prompt-output <path>   Prompt archive path
+  --dry-run                Print the selected model and request plan; do not call API
+  --json                   Print structured result without image Base64
+  -h, --help               Show help
+
+Routing rule:
+  One reference defaults to gpt-image-2. Two or more references automatically use gpt-image-2-vip.`);
 }
 
 function parseArgs(argv) {
-  const config = { images: [], urls: [], json: false, help: false };
+  const config = { images: [], urls: [], json: false, dryRun: false, help: false };
   const names = new Map([
     ["--prompt", "prompt"],
     ["--promptfile", "promptFile"],
     ["--prompt-output", "promptOutput"],
     ["--output", "output"],
+    ["--profile", "profile"],
     ["--model", "model"],
     ["--size", "size"],
     ["--quality", "quality"],
   ]);
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "-h" || arg === "--help") {
-      config.help = true;
-    } else if (arg === "--json") {
-      config.json = true;
-    } else if (arg === "--image" || arg === "--url") {
+    if (arg === "-h" || arg === "--help") config.help = true;
+    else if (arg === "--json") config.json = true;
+    else if (arg === "--dry-run") config.dryRun = true;
+    else if (arg === "--image" || arg === "--url") {
       const value = argv[++index];
       if (!value) throw new Error(`Missing value for ${arg}`);
       config[arg === "--image" ? "images" : "urls"].push(value);
@@ -77,7 +88,7 @@ function parseArgs(argv) {
   return config;
 }
 
-async function requestEdit(config, prompt, options, requestUrl) {
+async function requestEdit(config, prompt, options, endpoint) {
   if (config.images.length > 0) {
     await ensureFilesExist(config.images);
     const form = new FormData();
@@ -89,20 +100,18 @@ async function requestEdit(config, prompt, options, requestUrl) {
         imagePath.split(/[\\/]/).pop(),
       );
     }
-    form.append("model", options.model);
-    form.append("prompt", prompt);
-    appendFormValue(form, "size", options.size);
-    appendFormValue(form, "quality", options.quality);
-    return postMultipart(requestUrl, form);
+    const payload = buildApiPayload(options, { prompt });
+    for (const [key, value] of Object.entries(payload)) appendFormValue(form, key, value);
+    return postMultipart(endpoint, form);
   }
 
-  return postJson(requestUrl, {
-    model: options.model,
-    size: options.size,
-    quality: options.quality,
-    prompt,
-    urls: config.urls,
-  });
+  return postJson(
+    endpoint,
+    buildApiPayload(options, {
+      prompt,
+      urls: config.urls,
+    }),
+  );
 }
 
 async function run() {
@@ -117,12 +126,18 @@ async function run() {
 
   await loadAmbientEnv();
   const prompt = await readPromptInput(config.prompt, config.promptFile);
+  const referenceCount = config.images.length + config.urls.length;
+  const options = resolveImageOptions(config, { referenceCount });
+  const plan = publicPlan("edit", options, {
+    sourceType: config.images.length > 0 ? "files" : "urls",
+    referenceCount,
+  });
+  if (config.dryRun) return printJson(plan);
+
   const hint = slugify(prompt.split(/\s+/).slice(0, 8).join(" "), "edited-image");
   const promptPath = await savePrompt(prompt, config.promptOutput, hint);
   const outputPath = resolveOutput(config.output, buildDefaultImagePath("edit", hint));
-  const options = resolveImageOptions(config);
-  const requestUrl = `${buildBaseUrl()}/images/edits`;
-  const response = await requestEdit(config, prompt, options, requestUrl);
+  const response = await requestEdit(config, prompt, options, plan.endpoint);
   const images = await extractGeneratedImages(response);
   const savedImages = [];
   for (let index = 0; index < images.length; index += 1) {
@@ -133,11 +148,9 @@ async function run() {
 
   if (config.json) {
     return printJson({
+      ...plan,
       savedImages,
       savedPrompt: promptPath,
-      requestUrl,
-      options,
-      sourceType: config.images.length > 0 ? "files" : "urls",
       apiResponse: responseSummary(response),
     });
   }

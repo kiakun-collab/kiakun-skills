@@ -3,16 +3,71 @@ import process from "node:process";
 import { homedir } from "node:os";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-export const DEFAULT_IMAGE_DIR = "gpt-image-2-vip-output/image";
-export const DEFAULT_PROMPT_DIR = "gpt-image-2-vip-output/prompt";
+export const DEFAULT_OUTPUT_ROOT = "gpt-image-2-output";
+export const DEFAULT_PROMPT_DIR = path.join(DEFAULT_OUTPUT_ROOT, "prompts");
 export const DEFAULT_BASE_URL = "https://aifast.site/v1";
-export const DEFAULT_MODEL = "gpt-image-2-vip";
-export const DEFAULT_SIZE = "2048x2048";
-export const DEFAULT_QUALITY = "high";
+export const STANDARD_MODEL = "gpt-image-2";
+export const VIP_MODEL = "gpt-image-2-vip";
+export const DEFAULT_PROFILE = "auto";
+export const DEFAULT_STANDARD_SIZE = "1024x1024";
+export const DEFAULT_VIP_SIZE = "2048x2048";
+export const DEFAULT_VIP_QUALITY = "high";
 export const DEFAULT_TIMEOUT_MS = 300_000;
 export const DEFAULT_MAX_RETRIES = 2;
 
+const VALID_PROFILES = new Set(["auto", "standard", "vip"]);
 const VALID_QUALITIES = new Set(["auto", "low", "medium", "high"]);
+const RATIO_SIZES = new Set([
+  "auto",
+  "1:1",
+  "3:2",
+  "2:3",
+  "4:3",
+  "3:4",
+  "5:4",
+  "4:5",
+  "16:9",
+  "9:16",
+  "21:9",
+  "9:21",
+  "2:1",
+  "1:2",
+  "3:1",
+  "1:3",
+]);
+const STANDARD_PIXEL_SIZES = new Set([
+  "256x256",
+  "512x512",
+  "1024x1024",
+  "1536x1024",
+  "1792x1024",
+  "1024x1536",
+  "1024x1792",
+  "1280x720",
+  "720x1280",
+]);
+const VIP_PIXEL_SIZES = new Set([
+  "2048x2048",
+  "2880x2880",
+  "2560x1440",
+  "3840x2160",
+  "1440x2560",
+  "2160x3840",
+  "2304x1728",
+  "3264x2448",
+  "1728x2304",
+  "2448x3264",
+  "2496x1664",
+  "3504x2336",
+  "1664x2496",
+  "2336x3504",
+  "2240x1792",
+  "3200x2560",
+  "1792x2240",
+  "2560x3200",
+  "3024x1296",
+  "3696x1584",
+]);
 
 export async function readEnvFile(filePath) {
   try {
@@ -83,20 +138,118 @@ function parseInteger(value, fallback, label, minimum = 0) {
   return parsed;
 }
 
-export function resolveImageOptions({ model, size, quality, n } = {}) {
-  const resolved = {
-    model: model || process.env.OPENAI_IMAGE_MODEL || DEFAULT_MODEL,
-    size: size || process.env.OPENAI_IMAGE_SIZE || DEFAULT_SIZE,
-    quality: quality || process.env.OPENAI_IMAGE_QUALITY || DEFAULT_QUALITY,
-    n: parseInteger(n ?? process.env.OPENAI_IMAGE_N, 1, "n", 1),
-  };
-  if (!VALID_QUALITIES.has(resolved.quality)) {
+function normalizeModel(model) {
+  if (!model) return null;
+  if (model !== STANDARD_MODEL && model !== VIP_MODEL) {
+    throw new Error(`model must be ${STANDARD_MODEL} or ${VIP_MODEL}.`);
+  }
+  return model;
+}
+
+function validateSize(size, tier) {
+  if (tier === "standard") {
+    if (!STANDARD_PIXEL_SIZES.has(size) && !RATIO_SIZES.has(size)) {
+      throw new Error(
+        `Standard model size is unsupported: ${size}. Use a documented 1K size or ratio.`,
+      );
+    }
+    return;
+  }
+  if (!VIP_PIXEL_SIZES.has(size)) {
+    throw new Error(
+      `VIP model size must use a documented 2K/4K pixel value, for example ${DEFAULT_VIP_SIZE} or 3840x2160.`,
+    );
+  }
+}
+
+export function resolveImageOptions(
+  { profile, model, size, quality, n } = {},
+  { referenceCount = 0 } = {},
+) {
+  const requestedProfile = profile || process.env.GPT_IMAGE_PROFILE || DEFAULT_PROFILE;
+  if (!VALID_PROFILES.has(requestedProfile)) {
+    throw new Error(`profile must be one of: ${[...VALID_PROFILES].join(", ")}.`);
+  }
+
+  const explicitModel = normalizeModel(model);
+  const requestedSize = size || null;
+  const requestedQuality = quality || null;
+  if (requestedQuality && !VALID_QUALITIES.has(requestedQuality)) {
     throw new Error(`quality must be one of: ${[...VALID_QUALITIES].join(", ")}.`);
   }
-  if (!/^\d{3,5}x\d{3,5}$/.test(resolved.size)) {
-    throw new Error("size must use pixel dimensions such as 2048x2048 or 3840x2160.");
+  if (
+    explicitModel &&
+    requestedProfile !== "auto" &&
+    ((requestedProfile === "standard" && explicitModel === VIP_MODEL) ||
+      (requestedProfile === "vip" && explicitModel === STANDARD_MODEL))
+  ) {
+    throw new Error(`profile ${requestedProfile} conflicts with explicit model ${explicitModel}.`);
   }
-  return resolved;
+
+  const vipReasons = [];
+  if (referenceCount >= 2) vipReasons.push("multiple-reference-images");
+  if (requestedQuality) vipReasons.push("quality-control-requested");
+  if (requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
+    vipReasons.push("2k-or-4k-size-requested");
+  }
+
+  let tier;
+  if (explicitModel) {
+    tier = explicitModel === VIP_MODEL ? "vip" : "standard";
+  } else if (requestedProfile === "standard" || requestedProfile === "vip") {
+    tier = requestedProfile;
+  } else {
+    tier = vipReasons.length > 0 ? "vip" : "standard";
+  }
+
+  if (tier === "standard" && referenceCount >= 2) {
+    throw new Error("Two or more reference images require profile vip or profile auto.");
+  }
+  if (tier === "standard" && requestedQuality) {
+    throw new Error("quality is only supported by gpt-image-2-vip.");
+  }
+  if (tier === "standard" && requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
+    throw new Error("2K/4K sizes require profile vip or profile auto.");
+  }
+
+  const resolvedSize =
+    requestedSize ||
+    (tier === "vip"
+      ? process.env.GPT_IMAGE_VIP_SIZE || DEFAULT_VIP_SIZE
+      : process.env.GPT_IMAGE_STANDARD_SIZE || DEFAULT_STANDARD_SIZE);
+  validateSize(resolvedSize, tier);
+
+  const resolvedQuality =
+    tier === "vip"
+      ? requestedQuality || process.env.GPT_IMAGE_VIP_QUALITY || DEFAULT_VIP_QUALITY
+      : null;
+  const resolvedModel = tier === "vip" ? VIP_MODEL : STANDARD_MODEL;
+  const routeReasons =
+    tier === "vip"
+      ? vipReasons.length > 0
+        ? vipReasons
+        : [explicitModel ? "explicit-vip-model" : "explicit-vip-profile"]
+      : [explicitModel ? "explicit-standard-model" : "cost-saving-default"];
+
+  return {
+    requestedProfile,
+    tier,
+    model: resolvedModel,
+    size: resolvedSize,
+    quality: resolvedQuality,
+    n: parseInteger(n ?? process.env.GPT_IMAGE_N, 1, "n", 1),
+    routeReasons,
+  };
+}
+
+export function buildApiPayload(options, extra = {}) {
+  const payload = {
+    model: options.model,
+    size: options.size,
+    ...extra,
+  };
+  if (options.quality) payload.quality = options.quality;
+  return payload;
 }
 
 export async function readPromptInput(prompt, promptFile) {
@@ -119,7 +272,7 @@ export function slugify(value, fallback = "image-task") {
 
 function timestamp() {
   const now = new Date();
-  const parts = [
+  return [
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, "0"),
     String(now.getDate()).padStart(2, "0"),
@@ -127,14 +280,15 @@ function timestamp() {
     String(now.getHours()).padStart(2, "0"),
     String(now.getMinutes()).padStart(2, "0"),
     String(now.getSeconds()).padStart(2, "0"),
-  ];
-  return parts.join("");
+  ].join("");
 }
 
-export function buildDefaultImagePath(kind, hint) {
+export function buildDefaultImagePath(operation, hint) {
+  const folder = operation === "edit" ? "edited" : "generated";
   return path.join(
-    DEFAULT_IMAGE_DIR,
-    `${slugify(hint, kind === "edit" ? "edited-image" : "generated-image")}-${timestamp()}.png`,
+    DEFAULT_OUTPUT_ROOT,
+    folder,
+    `${slugify(hint, `${folder}-image`)}-${timestamp()}.png`,
   );
 }
 
@@ -169,6 +323,9 @@ export function mimeFor(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
   if (ext === ".webp") return "image/webp";
+  if (ext !== ".png") {
+    throw new Error(`Unsupported image type: ${ext || "(no extension)"}. Use PNG, JPEG, or WebP.`);
+  }
   return "image/png";
 }
 
@@ -300,6 +457,21 @@ export function appendFormValue(form, key, value) {
   if (value !== undefined && value !== null && value !== "") {
     form.append(key, String(value));
   }
+}
+
+export function publicPlan(operation, options, extra = {}) {
+  return {
+    operation,
+    endpoint: `${buildBaseUrl()}/images/${operation === "edit" ? "edits" : "generations"}`,
+    requestedProfile: options.requestedProfile,
+    selectedTier: options.tier,
+    model: options.model,
+    size: options.size,
+    quality: options.quality,
+    n: operation === "generate" ? options.n : undefined,
+    routeReasons: options.routeReasons,
+    ...extra,
+  };
 }
 
 export function printJson(value) {
