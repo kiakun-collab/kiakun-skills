@@ -75,13 +75,13 @@ test("auto defaults daily generation to standard model", () => {
   });
 });
 
-test("auto selects VIP for 2K and quality requests", () => {
+test("auto selects VIP for a supported 2K preset and quality request", () => {
   const options = resolveImageOptions({ size: "2560x1440", quality: "high" });
   assert.equal(options.model, "gpt-image-2-vip");
   assert.equal(options.tier, "vip");
   assert.deepEqual(options.routeReasons, [
     "quality-control-requested",
-    "2k-or-4k-size-requested",
+    "2k-or-4k-preset-requested",
   ]);
 });
 
@@ -99,7 +99,18 @@ test("standard profile rejects VIP-only parameters", () => {
   );
   assert.throws(
     () => resolveImageOptions({ profile: "standard", size: "3840x2160" }),
-    /2K\/4K sizes require/,
+    /2K\/4K output presets require/,
+  );
+});
+
+test("rejects arbitrary resolutions that are not documented presets", () => {
+  assert.throws(
+    () => resolveImageOptions({ profile: "standard", size: "1600x900" }),
+    /arbitrary resolutions are not supported/,
+  );
+  assert.throws(
+    () => resolveImageOptions({ profile: "vip", size: "4096x4096" }),
+    /arbitrary resolutions are not supported/,
   );
 });
 

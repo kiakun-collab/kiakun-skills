@@ -4,7 +4,7 @@ Source: `https://9nnc8eo3c5.apifox.cn/8671595m0.md` (updated 2026-04-30).
 
 ## Models
 
-| Model | Use | Resolution | Quality parameter |
+| Model | Use | Supported output tier | Quality parameter |
 |---|---|---|---|
 | `gpt-image-2` | Default daily generation and ordinary single-reference edits | Up to 1K | Not effective; omit it |
 | `gpt-image-2-vip` | Complex/high-precision work, multiple references, 2K/4K | 1K/2K/4K | `auto`, `low`, `medium`, `high` |
@@ -30,7 +30,7 @@ Authorization: Bearer <OPENAI_API_KEY>
 | `model` | string | Yes | `gpt-image-2` or `gpt-image-2-vip` |
 | `prompt` | string | Yes | Image description |
 | `n` | integer | No | Default `1` |
-| `size` | string | No | Pixel dimensions or a supported ratio |
+| `size` | string | No | Supported preset token or aspect ratio; not arbitrary exact dimensions |
 | `quality` | string | No | VIP only |
 | `response_format` | string | No | Always use `b64_json` |
 
@@ -42,14 +42,28 @@ Authorization: Bearer <OPENAI_API_KEY>
 | `prompt` | string | Yes | Edit instruction |
 | `image` | file | For multipart | PNG, JPEG, or WebP; repeatable |
 | `urls` | string[] | Documented gateway extension | Do not send directly; live testing found the gateway expects multipart |
-| `size` | string | No | Pixel dimensions or ratio |
+| `size` | string | No | Supported preset token or aspect ratio; not arbitrary exact dimensions |
 | `quality` | string | No | VIP only |
 
-## Standard Sizes
+## Size Semantics
+
+The API field is named `size`, but it is not a free-form resolution control. The gateway converts
+pixel-looking values to the upstream `aspectRatio` field. Therefore:
+
+- Only use a token listed below.
+- Values such as `1600x900`, `1920x1080`, and `4096x4096` are unsupported unless explicitly listed.
+- Several tokens can map to the same aspect ratio.
+- The final PNG dimensions are selected by the model/gateway and may differ from the token.
+- Treat 1K/2K/4K as supported output tiers, not a promise of arbitrary pixel dimensions.
+
+Live standard-model tests returned `1254x1254` for both `256x256` and `1024x1024` requests. The
+scripts report actual dimensions so callers do not mistake the request token for the final file size.
+
+## Standard Preset Tokens
 
 Use these with `gpt-image-2`:
 
-| Size | Ratio / purpose |
+| Preset token | Mapped ratio / purpose |
 |---|---|
 | `1024x1024` | 1:1 default |
 | `512x512` | Small square |
@@ -66,7 +80,7 @@ Supported ratio strings:
 
 `1:1`, `3:2`, `2:3`, `4:3`, `3:4`, `5:4`, `4:5`, `16:9`, `9:16`, `21:9`, `9:21`, `2:1`, `1:2`, `3:1`, `1:3`, `auto`.
 
-## VIP 2K / 4K Sizes
+## VIP 2K / 4K Preset Tokens
 
 | Ratio | 2K | 4K |
 |---|---|---|
@@ -81,7 +95,8 @@ Supported ratio strings:
 | 4:5 | `1792x2240` | `2560x3200` |
 | 21:9 | `3024x1296` | `3696x1584` |
 
-Use explicit 2K/4K pixel values for VIP. A live gateway test observed `1024x1024` being converted to `1:1` and rejected by the VIP upstream.
+Use one of the listed 2K/4K preset tokens for VIP. Do not substitute a custom resolution. A live
+gateway test observed `1024x1024` being converted to `1:1` and rejected by the VIP upstream.
 
 ## Quality
 
@@ -94,7 +109,8 @@ VIP only:
 | `medium` | Balanced |
 | `high` | Most detail, slowest |
 
-Quality controls sampling detail, not resolution. Select resolution with `size`.
+Quality controls sampling detail, not the output specification. Select only a supported preset or
+ratio with `size`.
 
 ## Response
 

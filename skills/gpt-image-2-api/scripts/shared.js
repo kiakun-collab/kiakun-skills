@@ -150,14 +150,14 @@ function validateSize(size, tier) {
   if (tier === "standard") {
     if (!STANDARD_PIXEL_SIZES.has(size) && !RATIO_SIZES.has(size)) {
       throw new Error(
-        `Standard model size is unsupported: ${size}. Use a documented 1K size or ratio.`,
+        `Unsupported standard output preset: ${size}. Use a documented preset or ratio; arbitrary resolutions are not supported.`,
       );
     }
     return;
   }
   if (!VIP_PIXEL_SIZES.has(size)) {
     throw new Error(
-      `VIP model size must use a documented 2K/4K pixel value, for example ${DEFAULT_VIP_SIZE} or 3840x2160.`,
+      `Unsupported VIP output preset: ${size}. Use a documented 2K/4K preset such as ${DEFAULT_VIP_SIZE} or 3840x2160; arbitrary resolutions are not supported.`,
     );
   }
 }
@@ -190,7 +190,7 @@ export function resolveImageOptions(
   if (referenceCount >= 2) vipReasons.push("multiple-reference-images");
   if (requestedQuality) vipReasons.push("quality-control-requested");
   if (requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
-    vipReasons.push("2k-or-4k-size-requested");
+    vipReasons.push("2k-or-4k-preset-requested");
   }
 
   let tier;
@@ -209,7 +209,7 @@ export function resolveImageOptions(
     throw new Error("quality is only supported by gpt-image-2-vip.");
   }
   if (tier === "standard" && requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
-    throw new Error("2K/4K sizes require profile vip or profile auto.");
+    throw new Error("2K/4K output presets require profile vip or profile auto.");
   }
 
   const resolvedSize =

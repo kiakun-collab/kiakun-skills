@@ -43,7 +43,7 @@ Required prompt input (choose one):
 Routing and image parameters:
   --profile <name>         auto | standard | vip (default: auto)
   --model <name>           Explicit gpt-image-2 or gpt-image-2-vip override
-  --size <value>           Pixel size or ratio supported by the selected model
+  --size <preset>          Listed output preset or ratio; not an arbitrary exact resolution
   --quality <level>        VIP only: auto | low | medium | high
 
 Output:

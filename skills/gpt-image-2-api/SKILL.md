@@ -1,6 +1,6 @@
 ---
 name: gpt-image-2-api
-description: Generate and edit images through the aifast.site OpenAI-compatible GPT Image API with cost-aware routing between gpt-image-2 and gpt-image-2-vip. Use for text-to-image, single- or multi-reference editing, 1K daily images, complex information-dense graphics, precision-sensitive output, and 2K/4K rendering. Defaults to the lower-cost standard model and upgrades to VIP only when task complexity, requested resolution, quality control, or multiple references require it.
+description: Generate and edit images through the aifast.site OpenAI-compatible GPT Image API with cost-aware routing between gpt-image-2 and gpt-image-2-vip. Use for text-to-image, single- or multi-reference editing, daily images, complex information-dense graphics, precision-sensitive output, and supported 1K/2K/4K specification tiers. Defaults to the lower-cost standard model and upgrades to VIP only when task complexity, requested output specification, quality control, or multiple references require it.
 ---
 
 # GPT Image 2 API
@@ -28,13 +28,26 @@ Use `--profile auto` unless the semantic task itself clearly requires VIP.
 |---|---|---|
 | Daily illustration, avatar, simple product image, social post, concept image | `auto` or `standard` | `gpt-image-2`, default `1024x1024` |
 | One reference image, ordinary background/style/object edit | `auto` or `standard` | `gpt-image-2`, default `1024x1024` |
-| User explicitly requests 2K or 4K | `auto` or `vip` plus exact `--size` | `gpt-image-2-vip` |
+| User explicitly requests a supported 2K or 4K tier | `auto` or `vip` plus a listed `--size` preset | `gpt-image-2-vip` |
 | Information-dense infographic, architecture diagram, academic figure, UI board, poster with substantial text/layout | `vip` | `gpt-image-2-vip`, default `2048x2048` |
 | Fine typography, small labels, precision-sensitive product detail, publication-ready output | `vip` | `gpt-image-2-vip`, default `2048x2048` |
 | Two or more reference images | `auto` | Automatically selects `gpt-image-2-vip` |
 | User explicitly asks for `quality=low/medium/high` | `auto` or `vip` | Automatically selects `gpt-image-2-vip` |
 
 Never use VIP merely because it is available. VIP costs more.
+
+## Important: Size Is A Preset, Not An Exact Resolution
+
+`--size` selects a documented upstream output specification or aspect ratio. It does not ask the
+model to render an arbitrary exact width and height.
+
+- Use only values listed in [references/api-reference.md](./references/api-reference.md).
+- Do not invent custom values such as `1600x900`, `1920x1080`, or `4096x4096`.
+- Pixel-looking values such as `1024x1024` and `2560x1440` are gateway preset tokens. The gateway
+  maps them to an upstream `aspectRatio` or output tier.
+- The model or gateway controls the final pixel dimensions. Check `actualImages` in `--json` output
+  instead of assuming that the returned file exactly matches the preset token.
+- Use VIP preset tokens only to select a supported 2K/4K tier, not to request a custom resolution.
 
 ## 3. Run A Dry Plan
 
@@ -127,7 +140,8 @@ Common:
 
 - `--profile auto|standard|vip`: routing policy; default `auto`.
 - `--model gpt-image-2|gpt-image-2-vip`: explicit override; normally prefer `--profile`.
-- `--size <value>`: use a documented size from [references/api-reference.md](./references/api-reference.md).
+- `--size <preset>`: select a documented output specification or ratio. It is not an arbitrary or
+  guaranteed exact resolution.
 - `--prompt <text>` or `--promptfile <path>`: exactly one prompt source.
 - `--output <path>`: final image path.
 - `--prompt-output <path>`: optional prompt archive override.
@@ -142,9 +156,9 @@ Generate only:
 
 VIP only:
 
-- `--quality auto|low|medium|high`: sampling quality. It does not control resolution.
+- `--quality auto|low|medium|high`: sampling quality. It does not control the output specification.
 
-Do not pass `--quality` to the standard model. Do not pass 2K/4K sizes to the standard model.
+Do not pass `--quality` to the standard model. Do not pass 2K/4K presets to the standard model.
 
 ## 6. Output Paths
 
@@ -158,8 +172,9 @@ gpt-image-2-output/
 ```
 
 All returned paths are absolute in `--json` output. When `--n > 1`, append `-1`, `-2`, and so on.
-Structured output also reports each image's actual dimensions and warns when the gateway returns a
-different pixel size from the request.
+Structured output reports each image's actual dimensions. A mismatch warning means the gateway
+treated the pixel-looking `--size` value as a preset rather than an exact resolution; it does not
+necessarily mean generation failed.
 
 ## 7. Configuration
 
