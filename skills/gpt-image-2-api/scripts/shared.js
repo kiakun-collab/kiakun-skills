@@ -14,6 +14,7 @@ export const DEFAULT_VIP_SIZE = "2048x2048";
 export const DEFAULT_VIP_QUALITY = "high";
 export const DEFAULT_TIMEOUT_MS = 300_000;
 export const DEFAULT_MAX_RETRIES = 2;
+export const MAX_GENERATION_COUNT = 10;
 
 const VALID_PROFILES = new Set(["auto", "standard", "vip"]);
 const VALID_QUALITIES = new Set(["auto", "low", "medium", "high"]);
@@ -224,6 +225,10 @@ export function resolveImageOptions(
       ? requestedQuality || process.env.GPT_IMAGE_VIP_QUALITY || DEFAULT_VIP_QUALITY
       : null;
   const resolvedModel = tier === "vip" ? VIP_MODEL : STANDARD_MODEL;
+  const resolvedCount = parseInteger(n ?? process.env.GPT_IMAGE_N, 1, "n", 1);
+  if (resolvedCount > MAX_GENERATION_COUNT) {
+    throw new Error(`n must be an integer between 1 and ${MAX_GENERATION_COUNT}.`);
+  }
   const routeReasons =
     tier === "vip"
       ? vipReasons.length > 0
@@ -237,7 +242,7 @@ export function resolveImageOptions(
     model: resolvedModel,
     size: resolvedSize,
     quality: resolvedQuality,
-    n: parseInteger(n ?? process.env.GPT_IMAGE_N, 1, "n", 1),
+    n: resolvedCount,
     routeReasons,
   };
 }

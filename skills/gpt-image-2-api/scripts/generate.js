@@ -35,7 +35,7 @@ Routing and image parameters:
   --model <name>           Explicit gpt-image-2 or gpt-image-2-vip override
   --size <preset>          Listed output preset or ratio; not an arbitrary exact resolution
   --quality <level>        VIP only: auto | low | medium | high
-  --n <count>              Number of images (default: 1)
+  --n <count>              Number of images, 1-10 (default: 1)
 
 Output:
   --output <path>          Image path (default: ${DEFAULT_OUTPUT_ROOT}/generated/...)

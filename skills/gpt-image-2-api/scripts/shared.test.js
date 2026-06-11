@@ -75,6 +75,13 @@ test("auto defaults daily generation to standard model", () => {
   });
 });
 
+test("rejects image counts above the paid-request safety limit", () => {
+  assert.throws(
+    () => resolveImageOptions({ n: 11 }),
+    /n must be an integer between 1 and 10/,
+  );
+});
+
 test("auto selects VIP for a supported 2K preset and quality request", () => {
   const options = resolveImageOptions({ size: "2560x1440", quality: "high" });
   assert.equal(options.model, "gpt-image-2-vip");

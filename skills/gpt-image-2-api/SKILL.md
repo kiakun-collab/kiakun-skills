@@ -99,7 +99,7 @@ node scripts/generate.js \
 - Routing: `--profile auto|standard|vip`; prefer this over `--model`.
 - Output preset: `--size <listed-preset-or-ratio>`.
 - VIP sampling: `--quality auto|low|medium|high`; never use with standard.
-- Generate count: `--n <integer>`; the script backfills if the gateway returns too few images.
+- Generate count: `--n <integer from 1 to 10>`; the script backfills if the gateway returns too few images.
 - Result: `--output`, optional `--prompt-output`, and recommended `--json`.
 
 When `--output` is omitted, results go to `gpt-image-2-output/generated/` or `edited/`; prompts go to

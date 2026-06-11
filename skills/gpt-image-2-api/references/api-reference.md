@@ -29,7 +29,7 @@ Authorization: Bearer <OPENAI_API_KEY>
 |---|---|---|---|
 | `model` | string | Yes | `gpt-image-2` or `gpt-image-2-vip` |
 | `prompt` | string | Yes | Image description |
-| `n` | integer | No | Default `1` |
+| `n` | integer | No | `1` to `10`; default `1` |
 | `size` | string | No | Supported preset token or aspect ratio; not arbitrary exact dimensions |
 | `quality` | string | No | VIP only |
 | `response_format` | string | No | Always use `b64_json` |
