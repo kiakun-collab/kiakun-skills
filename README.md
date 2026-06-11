@@ -16,6 +16,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
 | **game-ui-asset-pipeline** | `skills/game-ui-asset-pipeline/` | 游戏 UI 资产流水线 | 生成、清理、切片、验证并导入 Godot 游戏 UI 图标、HUD glyph、九宫格面板和按钮皮肤 |
+| **gpt-image-2-api** | `skills/gpt-image-2-api/` | GPT Image 2 API | 日常默认标准版，复杂、高精度、多参考图或受支持的 2K/4K 规格时升级 VIP |
 
 ---
 
@@ -51,6 +52,7 @@ cp -r skills/bilibili-video-summary ~/.claude/skills/
 cp -r skills/cc-switch-claude-provider ~/.claude/skills/
 cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
 cp -r skills/game-ui-asset-pipeline ~/.claude/skills/
+cp -r skills/gpt-image-2-api ~/.claude/skills/
 
 # OpenClaw 示例
 cp -r skills/xiaohongshu <openclaw-project>/skills/
@@ -94,6 +96,11 @@ kiakun-skills/
     │   └── agents/
     ├── game-ui-asset-pipeline/
     │   ├── SKILL.md           # 游戏 UI 资产流水线
+    │   ├── agents/
+    │   ├── references/
+    │   └── scripts/
+    ├── gpt-image-2-api/
+    │   ├── SKILL.md           # GPT Image 2 成本感知 API 生图与编辑
     │   ├── agents/
     │   ├── references/
     │   └── scripts/
@@ -187,6 +194,17 @@ kiakun-skills/
 > "用 game-ui-asset-pipeline 帮我给 Godot 餐厅游戏生成一套轻量动漫风 HUD 图标表，并切片导入。"
 
 详见 `skills/game-ui-asset-pipeline/SKILL.md`。
+
+---
+
+### gpt-image-2-api（GPT Image 2 API）
+
+通过 OpenAI-compatible 图片接口生成或编辑图片。日常任务默认使用成本更低的 `gpt-image-2`；复杂信息图、高精度内容、多个参考图或受支持的 2K/4K 规格使用 `gpt-image-2-vip`。`size` 只能选择文档列出的规格或比例，不能指定任意精确分辨率。提供 `--dry-run` 路由预览、清晰的生成/编辑路径、参数校验、多图保存、超时与自动重试。
+
+**典型用法：**
+> "生成一张日常社交配图；如果是复杂信息图或 4K 海报，再自动使用 VIP。"
+
+详见 `skills/gpt-image-2-api/SKILL.md`。
 
 ---
 
