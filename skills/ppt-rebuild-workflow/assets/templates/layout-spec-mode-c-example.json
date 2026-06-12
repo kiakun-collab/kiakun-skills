@@ -1,0 +1,98 @@
+{
+  "page": "01",
+  "mode": "C",
+  "coordinateSystem": {
+    "width": 1280,
+    "height": 720
+  },
+  "objects": [
+    {
+      "name": "background-environment",
+      "role": "background",
+      "type": "image",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "z": 1,
+      "fit": "cover",
+      "editable": true,
+      "source": "environment-only.png"
+    },
+    {
+      "name": "person-primary",
+      "role": "person",
+      "type": "image",
+      "x": 760,
+      "y": 80,
+      "w": 430,
+      "h": 610,
+      "z": 5,
+      "fit": "contain",
+      "editable": true,
+      "source": "person-primary-transparent.png",
+      "alphaRequired": true
+    },
+    {
+      "name": "content-image-01",
+      "role": "content-image",
+      "type": "image",
+      "x": 80,
+      "y": 350,
+      "w": 280,
+      "h": 158,
+      "z": 10,
+      "fit": "cover",
+      "editable": true,
+      "source": "content-image-01.png",
+      "replaceable": true
+    },
+    {
+      "name": "title-main",
+      "role": "title",
+      "type": "text",
+      "x": 64,
+      "y": 120,
+      "w": 660,
+      "h": 120,
+      "z": 20,
+      "editable": true,
+      "text": "主标题",
+      "style": {
+        "fontFamily": "TARGET_FONT",
+        "fontSizePt": 54,
+        "fontWeight": 800,
+        "color": "#FFFFFF",
+        "lineSpacingPercent": 108,
+        "align": "left",
+        "verticalAlign": "middle"
+      }
+    },
+    {
+      "name": "tag-01",
+      "role": "tag",
+      "type": "shape",
+      "shape": "roundRect",
+      "x": 64,
+      "y": 280,
+      "w": 220,
+      "h": 36,
+      "z": 21,
+      "editable": true,
+      "text": "#标签",
+      "style": {
+        "fill": "rgba(20, 10, 12, 0.25)",
+        "stroke": "#FF5B57",
+        "strokeWidthPx": 1,
+        "fontFamily": "TARGET_FONT",
+        "fontSizePt": 12,
+        "fontWeight": 700,
+        "color": "#FF5B57"
+      }
+    }
+  ],
+  "notes": [
+    "Mode C 中环境、人物、内容图、文字和结构必须独立。",
+    "每张内容图使用独立且可替换的图片对象。"
+  ]
+}

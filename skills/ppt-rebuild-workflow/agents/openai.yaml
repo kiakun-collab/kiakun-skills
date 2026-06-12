@@ -1,0 +1,4 @@
+interface:
+  display_name: "PPT Rebuild Workflow"
+  short_description: "Rebuild reference slides into editable PPTX."
+  default_prompt: "Use $ppt-rebuild-workflow to rebuild these slides, starting from task_mode, target_font, source_pptx/reference_images, editable_boundary, qa_level, and output_name."

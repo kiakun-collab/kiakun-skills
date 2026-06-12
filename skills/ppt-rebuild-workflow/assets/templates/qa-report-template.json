@@ -1,0 +1,120 @@
+{
+  "outputPptx": "",
+  "qaLevel": "",
+  "taskInputFile": "",
+  "deliveryChecklist": "",
+  "slideCount": null,
+  "mediaCount": null,
+  "emptyMediaCount": null,
+  "latinFonts": [],
+  "eastAsianFonts": [],
+  "complexScriptFonts": [],
+  "symbolFonts": [],
+  "themeFonts": [],
+  "fontFamilies": [],
+  "unresolvedInheritedFonts": [],
+  "textRunCount": null,
+  "shapeCount": null,
+  "textBoxPolicy": "",
+  "shapeRoleSummary": "",
+  "shapeRolesByPage": [],
+  "unknownRoleNames": [],
+  "layoutSpecFiles": [],
+  "referenceRenderComparison": "",
+  "referenceRenderPairingManifest": "",
+  "fullSlideImageRiskPages": [],
+  "wholeReferenceImageEmbedded": {
+    "automatedEvidence": "",
+    "manualEvidence": "",
+    "status": ""
+  },
+  "textFrameIntersections": null,
+  "thinShapeTextFrameIntersections": null,
+  "unresolvedTextFrameCount": null,
+  "unresolvedGroupTransformCount": null,
+  "geometryCoverageRisks": [],
+  "bodyCandidatesPerPage": [],
+  "textRecovery": {
+    "sourceFiles": [],
+    "resolvedItems": [],
+    "unresolvedItems": [],
+    "needsHumanReview": false
+  },
+  "visionAuditReport": "",
+  "visionAuditStatus": "",
+  "visualOverlapCount": null,
+  "visionFlaggedPages": [],
+  "visualFidelityReport": "",
+  "visualFidelityStatus": "",
+  "majorFidelityDeviationCount": null,
+  "minorFidelityDeviationCount": null,
+  "fidelityFlaggedPages": [],
+  "visibleAssetSeamCount": null,
+  "transitionFlaggedPages": [],
+  "visualTransitionByPage": [],
+  "visualFidelityByPage": [],
+  "needsHumanReview": false,
+  "humanReviewEvidence": "",
+  "level3Gates": {
+    "wholeReferenceImageEmbedded": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "combinedBackgroundPersonPictureCount": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "contentPicturesAreIndependentObjects": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "unexpectedTextOverlapCount": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "forbiddenOverlayShapesDetected": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    }
+  },
+  "auditArtifacts": {
+    "structureAudit": "",
+    "textFrameAudit": "",
+    "comparisonSheet": "",
+    "pairingManifest": ""
+  },
+  "renderPreview": "",
+  "contactSheet": "",
+  "checks": {
+    "fontConsistent": null,
+    "fontInheritanceResolved": null,
+    "taskInputPresent": null,
+    "textEditable": null,
+    "noObviousOverlap": null,
+    "spacingCloseToReference": null,
+    "compositionCloseToReference": null,
+    "reasonableShapes": null,
+    "noRedundantTextBoxes": null,
+    "layoutSpecsPresent": null,
+    "referenceRenderComparisonPresent": null,
+    "pairingManifestValidated": null,
+    "fullSlideImageRisksResolved": null,
+    "textFrameIntersectionsZero": null,
+    "thinShapeTextFrameIntersectionsResolved": null,
+    "geometryCoverageRisksResolved": null,
+    "visionAuditPassed": null,
+    "visualOverlapCountZero": null,
+    "visualFidelityPassed": null,
+    "majorFidelityDeviationCountZero": null,
+    "visibleAssetSeamCountZero": null,
+    "oneBodyCandidatePerStandardPage": null
+  },
+  "degradationEvents": [],
+  "issues": [],
+  "fixes": []
+}

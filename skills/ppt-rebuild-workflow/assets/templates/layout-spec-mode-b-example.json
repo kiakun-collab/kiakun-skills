@@ -1,0 +1,123 @@
+{
+  "page": "01",
+  "mode": "B",
+  "coordinateSystem": {
+    "width": 1280,
+    "height": 720
+  },
+  "visualTransitions": [
+    {
+      "id": "hero-to-reading-area",
+      "bounds": {
+        "x": 560,
+        "y": 80,
+        "w": 280,
+        "h": 560
+      },
+      "complexity": "complex",
+      "strategy": "baked-alpha-image",
+      "direction": "right-to-left",
+      "transitionWidthPx": 280,
+      "sourceAsset": "clean-background.png",
+      "editableBoundary": "背景、主视觉和复杂过渡烘焙；文字、标签和结构可编辑。",
+      "rationale": "参考图包含纹理、光晕和不规则明暗，不使用窄矩形渐变补缝。"
+    }
+  ],
+  "objects": [
+    {
+      "name": "background-main",
+      "role": "background",
+      "type": "image",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "z": 1,
+      "fit": "cover",
+      "editable": false,
+      "source": "clean-background.png"
+    },
+    {
+      "name": "title-main",
+      "role": "title",
+      "type": "text",
+      "x": 64,
+      "y": 150,
+      "w": 700,
+      "h": 110,
+      "z": 10,
+      "editable": true,
+      "text": "主标题",
+      "style": {
+        "fontFamily": "TARGET_FONT",
+        "fontSizePt": 52,
+        "fontWeight": 800,
+        "color": "#FFFFFF",
+        "lineSpacingPercent": 110,
+        "align": "left",
+        "verticalAlign": "middle"
+      }
+    },
+    {
+      "name": "body-panel-main",
+      "role": "body-panel",
+      "type": "shape",
+      "shape": "roundRect",
+      "x": 64,
+      "y": 400,
+      "w": 600,
+      "h": 170,
+      "z": 20,
+      "editable": true,
+      "style": {
+        "fill": "rgba(8, 25, 45, 0.60)",
+        "stroke": "#63C8FF",
+        "strokeWidthPx": 1,
+        "cornerRadiusPx": 8
+      }
+    },
+    {
+      "name": "body-text-main",
+      "role": "body-text",
+      "type": "text",
+      "x": 92,
+      "y": 426,
+      "w": 544,
+      "h": 118,
+      "z": 21,
+      "editable": true,
+      "text": "连续正文保持在一个文本框中。",
+      "style": {
+        "fontFamily": "TARGET_FONT",
+        "fontSizePt": 16,
+        "fontWeight": 400,
+        "color": "#F2F7FB",
+        "lineSpacingPercent": 145,
+        "align": "left",
+        "verticalAlign": "top"
+      }
+    },
+    {
+      "name": "decor-line-subtitle",
+      "role": "decor-line",
+      "type": "shape",
+      "shape": "line",
+      "x": 340,
+      "y": 320,
+      "w": 190,
+      "h": 2,
+      "z": 12,
+      "editable": true,
+      "style": {
+        "stroke": "#FF5B57",
+        "strokeWidthPx": 2
+      },
+      "clearanceRule": "must not cross rendered text glyphs"
+    }
+  ],
+  "notes": [
+    "Mode B 允许背景和主视觉合成；文字、标签、正文框、页码和装饰线保持可编辑。",
+    "复杂氛围过渡优先放入无字底图；简单规则渐变才使用 PPT 原生形状。",
+    "复制后删除不适用对象，并替换 TARGET_FONT 和示例文案。"
+  ]
+}

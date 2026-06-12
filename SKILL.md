@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、游戏 UI 资产流水线。
-  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX，或生成、切片、验证、导入 Godot 游戏 UI 资产时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA，或生成、切片、验证、导入 Godot 游戏 UI 资产时触发。
 ---
 
 # Kiakun Skills 集合
@@ -31,10 +31,13 @@ description: |
 6. **图片型 PPT 可编辑复刻**（"图片型 PPT / PPT 截图 / 复刻为可编辑 PPTX / 字体 / 占位图 / 背景格式 / 导出后检查"）
    → 执行 `image-ppt-to-editable-pptx` 技能。
 
-7. **游戏 UI 资产流水线**（"游戏 UI / Godot UI / icon sheet / HUD glyph / 九宫格面板 / UI 皮肤 / 切片导入"）
+7. **PPT 重构工作流**（"幻灯片截图 / image-only PPTX / AI 参考页 / 用户修改稿 / Mode A-E / 可编辑边界 / 视觉还原 QA"）
+   → 执行 `ppt-rebuild-workflow` 技能。
+
+8. **游戏 UI 资产流水线**（"游戏 UI / Godot UI / icon sheet / HUD glyph / 九宫格面板 / UI 皮肤 / 切片导入"）
    → 执行 `game-ui-asset-pipeline` 技能。
 
-8. **GPT Image 2 API**（"API 生图 / gpt-image-2 / gpt-image-2-vip / 2K 4K 图片 / 参考图编辑 / aifast 图片网关"）
+9. **GPT Image 2 API**（"API 生图 / gpt-image-2 / gpt-image-2-vip / 2K 4K 图片 / 参考图编辑 / aifast 图片网关"）
    → 执行 `gpt-image-2-api` 技能。
 
 ## 子技能路径
@@ -47,6 +50,7 @@ skills/
 ├── game-ui-asset-pipeline/   → 游戏 UI 资产生成、切片、验证与 Godot 导入
 ├── gpt-image-2-api/          → GPT Image 2 成本感知 API 生图与编辑
 ├── image-ppt-to-editable-pptx/ → 图片型 PPT 可编辑复刻
+├── ppt-rebuild-workflow/     → PPT 重构模式、可编辑边界与分级 QA
 └── xiaohongshu/              → 小红书自动化（含 xhs-auth, xhs-explore, xhs-interact, xhs-publish, xhs-content-ops 等）
 ```
 
@@ -79,6 +83,11 @@ skills/
 - 触发：用户提供图片型 PPT、PPT 截图或参考页图片，要求复刻为可编辑 `.pptx`
 - 能力：字体参数化 → 普通文字文本框化 → 原生形状重建 → 单形状截图占位 → PPT 背景格式 → 导出后重新导入/渲染/包内 QA
 - 入口文件：`skills/image-ppt-to-editable-pptx/SKILL.md`
+
+### ppt-rebuild-workflow
+- 触发：用户提供幻灯片截图、图片型 PPTX、AI 参考页或用户修改稿，要求选择适当重构模式并交付可编辑 PPTX
+- 能力：Mode A-E 路由 → 文案恢复 → 资产与可编辑边界 → 复杂视觉过渡策略 → 结构审计 → 文字可读性与参考图还原度双门禁
+- 入口文件：`skills/ppt-rebuild-workflow/SKILL.md`
 
 ### game-ui-asset-pipeline
 - 触发：用户要求生成、清理、切片、验证或导入游戏 UI 位图资产，尤其是 Godot 项目的 icon sheet、HUD glyph、九宫格面板、按钮皮肤和轻量动漫风 UI 装饰
