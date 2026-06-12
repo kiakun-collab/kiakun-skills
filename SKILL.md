@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线。
-  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA，或生成、切片、验证、导入 Godot 游戏 UI 资产时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA，或生成、切片、验证、导入 Godot 游戏 UI 资产时触发。
 ---
 
 # Kiakun Skills 集合
@@ -25,19 +25,22 @@ description: |
 4. **复合任务**（涉及多个平台）  
    → 按任务步骤分别调用对应子技能，并向用户说明分步执行计划。
 
-5. **Claude Code 第三方 API 配置**（"用 CC Switch 配置 Claude Code / base URL + key / 切换 Claude provider / 第三方 Claude API"）  
+5. **Claude Code 第三方 API 配置**（"用 CC Switch 配置 Claude Code / base URL + key / 切换 Claude provider / 第三方 Claude API"）
    → 执行 `cc-switch-claude-provider` 技能。
 
-6. **图片型 PPT 可编辑复刻**（"图片型 PPT / PPT 截图 / 复刻为可编辑 PPTX / 字体 / 占位图 / 背景格式 / 导出后检查"）
+6. **中文优先对话**（"默认中文 / 中文优先 / 简体中文回复 / 保留代码和命令原文"）
+   → 执行 `chinese-first-dialog` 技能。
+
+7. **图片型 PPT 可编辑复刻**（"图片型 PPT / PPT 截图 / 复刻为可编辑 PPTX / 字体 / 占位图 / 背景格式 / 导出后检查"）
    → 执行 `image-ppt-to-editable-pptx` 技能。
 
-7. **PPT 重构工作流**（"幻灯片截图 / image-only PPTX / AI 参考页 / 用户修改稿 / Mode A-E / 可编辑边界 / 视觉还原 QA"）
+8. **PPT 重构工作流**（"幻灯片截图 / image-only PPTX / AI 参考页 / 用户修改稿 / Mode A-E / 可编辑边界 / 视觉还原 QA"）
    → 执行 `ppt-rebuild-workflow` 技能。
 
-8. **游戏 UI 资产流水线**（"游戏 UI / Godot UI / icon sheet / HUD glyph / 九宫格面板 / UI 皮肤 / 切片导入"）
+9. **游戏 UI 资产流水线**（"游戏 UI / Godot UI / icon sheet / HUD glyph / 九宫格面板 / UI 皮肤 / 切片导入"）
    → 执行 `game-ui-asset-pipeline` 技能。
 
-9. **GPT Image 2 API**（"API 生图 / gpt-image-2 / gpt-image-2-vip / 2K 4K 图片 / 参考图编辑 / aifast 图片网关"）
+10. **GPT Image 2 API**（"API 生图 / gpt-image-2 / gpt-image-2-vip / 2K 4K 图片 / 参考图编辑 / aifast 图片网关"）
    → 执行 `gpt-image-2-api` 技能。
 
 ## 子技能路径
@@ -45,6 +48,7 @@ description: |
 ```
 skills/
 ├── bilibili-video-summary/   → B站视频解析与总结
+├── chinese-first-dialog/     → 默认简体中文对话并保留代码、命令、路径和标识符原文
 ├── cc-switch-claude-provider/ → CC Switch Claude Code 第三方 API 配置
 ├── folder-to-vector-kb/      → 文件夹文档向量化
 ├── game-ui-asset-pipeline/   → 游戏 UI 资产生成、切片、验证与 Godot 导入
@@ -78,6 +82,11 @@ skills/
 - 触发：用户提供 Claude-compatible `base URL` 和 API key，要求让 Claude Code 直接可用
 - 能力：写入 CC Switch provider → 切换当前 Claude provider → 同步 Claude Code 配置 → 冒烟测试
 - 入口文件：`skills/cc-switch-claude-provider/SKILL.md`
+
+### chinese-first-dialog
+- 触发：用户要求默认使用简体中文回复，或需要中文优先但保留代码、命令、路径、配置键、API 标识符和原始错误文本
+- 能力：简体中文优先沟通 → 技术字面量保持原文 → 权限与风险说明中文化 → 按需切换其他语言或双语输出
+- 入口文件：`skills/chinese-first-dialog/SKILL.md`
 
 ### image-ppt-to-editable-pptx
 - 触发：用户提供图片型 PPT、PPT 截图或参考页图片，要求复刻为可编辑 `.pptx`

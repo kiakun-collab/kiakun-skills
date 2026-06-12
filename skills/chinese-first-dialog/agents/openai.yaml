@@ -1,0 +1,3 @@
+interface:
+  display_name: "中文优先对话"
+  short_description: "在该工作区默认使用简体中文沟通并保留代码与命令原文"

@@ -13,6 +13,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **xiaohongshu** | `skills/xiaohongshu/` | 小红书自动化 | 认证登录、内容发布、搜索发现、社交互动、复合运营分析 |
 | **bilibili-video-summary** | `skills/bilibili-video-summary/` | B站视频总结 | 链接解析、字幕/弹幕/评论提取、Whisper 语音转写、结构化总结 |
 | **folder-to-vector-kb** | `skills/folder-to-vector-kb/` | 文件夹向量化 | 批量文档清洗、语义 chunk 切分、元数据补全、输出 `knowledge_base.jsonl` |
+| **chinese-first-dialog** | `skills/chinese-first-dialog/` | 中文优先对话 | 默认简体中文回复，保留代码、命令、路径、配置键、API 标识符和原始错误文本 |
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
 | **ppt-rebuild-workflow** | `skills/ppt-rebuild-workflow/` | PPT 重构工作流 | 为截图、图片型 PPT、AI 参考页和用户修改稿选择 Mode A-E，管理可编辑边界、视觉过渡与分级 QA |
@@ -50,6 +51,7 @@ uv sync
 # Claude Code 示例
 cp -r skills/xiaohongshu ~/.claude/skills/
 cp -r skills/bilibili-video-summary ~/.claude/skills/
+cp -r skills/chinese-first-dialog ~/.claude/skills/
 cp -r skills/cc-switch-claude-provider ~/.claude/skills/
 cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
 cp -r skills/ppt-rebuild-workflow ~/.claude/skills/
@@ -89,6 +91,9 @@ kiakun-skills/
     │   └── xhs-research-bridge/ # 研究桥接
     ├── bilibili-video-summary/
     │   └── SKILL.md           # B站视频总结
+    ├── chinese-first-dialog/
+    │   ├── SKILL.md           # 中文优先对话
+    │   └── agents/
     ├── cc-switch-claude-provider/
     │   ├── SKILL.md           # CC Switch Claude Code 第三方 API 配置
     │   ├── agents/
@@ -165,6 +170,17 @@ kiakun-skills/
 > "把 `/path/to/cases` 文件夹整理成可以 embedding 的知识库。"
 
 详见 `skills/folder-to-vector-kb/SKILL.md`。
+
+---
+
+### chinese-first-dialog（中文优先对话）
+
+让 Agent 在该工作区默认使用简体中文沟通，同时保留代码、命令、文件路径、配置键、API 标识符和原始错误文本不被翻译。
+
+**典型用法：**
+> "之后默认用中文回复，但代码和命令保持原文。"
+
+详见 `skills/chinese-first-dialog/SKILL.md`。
 
 ---
 
