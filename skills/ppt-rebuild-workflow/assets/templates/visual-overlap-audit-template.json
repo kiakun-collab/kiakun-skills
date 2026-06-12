@@ -1,0 +1,24 @@
+{
+  "renderDirectory": "",
+  "reviewedAtFullResolution": true,
+  "visionAuditStatus": "",
+  "visualOverlapCount": null,
+  "needsHumanReview": false,
+  "conflictingAuditRounds": [],
+  "humanReviewEvidence": "",
+  "flaggedPages": [],
+  "issues": [
+    {
+      "page": null,
+      "region": "",
+      "text": "",
+      "conflictingElement": "",
+      "severity": "",
+      "evidence": "",
+      "recommendedFix": "",
+      "status": ""
+    }
+  ],
+  "rerenderDirectory": "",
+  "notes": ""
+}

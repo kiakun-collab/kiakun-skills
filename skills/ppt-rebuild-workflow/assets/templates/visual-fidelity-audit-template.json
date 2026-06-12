@@ -1,0 +1,33 @@
+{
+  "referenceDirectory": "",
+  "renderDirectory": "",
+  "pairingManifest": "",
+  "visualFidelityStatus": "",
+  "majorFidelityDeviationCount": null,
+  "minorFidelityDeviationCount": null,
+  "fidelityFlaggedPages": [],
+  "visibleAssetSeamCount": null,
+  "transitionFlaggedPages": [],
+  "visualTransitionByPage": [],
+  "needsHumanReview": false,
+  "humanReviewEvidence": "",
+  "visualFidelityByPage": [
+    {
+      "page": null,
+      "status": "",
+      "deviations": [
+        {
+          "dimension": "",
+          "element": "",
+          "severity": "",
+          "referenceObservation": "",
+          "renderObservation": "",
+          "evidence": "",
+          "recommendedFix": "",
+          "status": ""
+        }
+      ]
+    }
+  ],
+  "notes": ""
+}

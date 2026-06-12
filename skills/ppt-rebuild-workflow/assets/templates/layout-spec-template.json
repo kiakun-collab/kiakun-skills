@@ -1,0 +1,82 @@
+{
+  "page": "XX",
+  "mode": "",
+  "coordinateSystem": {
+    "width": 1280,
+    "height": 720
+  },
+  "visualTransitions": [
+    {
+      "id": "",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "complexity": "",
+      "strategy": "",
+      "direction": "",
+      "transitionWidthPx": null,
+      "sourceAsset": "",
+      "editableBoundary": "",
+      "rationale": ""
+    }
+  ],
+  "objects": [
+    {
+      "name": "background-main",
+      "type": "image",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 720,
+      "z": 1,
+      "fit": "cover",
+      "role": "background",
+      "editable": false,
+      "source": ""
+    },
+    {
+      "name": "text-main",
+      "type": "text",
+      "role": "",
+      "x": 0,
+      "y": 0,
+      "w": 0,
+      "h": 0,
+      "z": 10,
+      "editable": true,
+      "text": "",
+      "style": {
+        "fontFamily": "TARGET_FONT",
+        "fontSizePt": 0,
+        "fontWeight": 400,
+        "color": "#FFFFFF",
+        "lineSpacingPercent": 100,
+        "align": "left",
+        "verticalAlign": "top"
+      }
+    },
+    {
+      "name": "shape-main",
+      "type": "shape",
+      "role": "",
+      "shape": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 0,
+      "h": 0,
+      "z": 5,
+      "editable": true,
+      "style": {
+        "fill": "transparent",
+        "stroke": "none",
+        "strokeWidthPx": 0
+      }
+    }
+  ],
+  "notes": [
+    "删除不适用的示例对象，并为每个保留对象填写 role、坐标、层级、可编辑性和来源。"
+  ]
+}

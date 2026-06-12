@@ -1,0 +1,29 @@
+# Level 2 Delivery Checklist
+
+- [ ] `task-input.json` 已落盘，模式、字体、来源、可编辑边界、QA 等级和输出策略完整。
+- [ ] 每页 `layout-spec` 和 `style-spec` 已落盘。
+- [ ] 关键渐隐、光晕和图片边缘已写入 `visualTransitions`，复杂过渡没有被简化为窄矩形补缝。
+- [ ] PPTX 使用新文件名，未覆盖用户原文件。
+- [ ] `latinFonts`、`eastAsianFonts`、`complexScriptFonts`、`symbolFonts` 和 `themeFonts` 已检查。
+- [ ] `unresolvedInheritedFonts` 为空，或每项已有人工证据。
+- [ ] 文本和结构对象可编辑，不是整页图片。
+- [ ] `fullSlideImageRiskPages` 为空，或每个风险页已证明不是整页参考图。
+- [ ] `wholeReferenceImageEmbedded` 有自动风险证据和人工对照结论。
+- [ ] 连续正文默认一个文本框，例外已说明。
+- [ ] 形状按角色命名，`unclassified` 数量为 0 或逐项解释。
+- [ ] `slideCount` 正确，`emptyMediaCount = 0`。
+- [ ] `textFrameIntersections = 0`。
+- [ ] 细长形状与文本框相交候选为 0，或逐项给出视觉安全证据。
+- [ ] `unresolvedTextFrameCount = 0`，组合/旋转对象的 `geometryCoverageRisks` 已闭环。
+- [ ] 参考图与最终渲染图对照图已生成。
+- [ ] pairing JSON 已生成，缺失页、重复页和多余页检查通过。
+- [ ] 每页最终 PNG 已全尺寸视觉复核。
+- [ ] 视觉重叠审计只统计影响文字可读性的碰撞，未把正常形状/图片叠放误判为失败。
+- [ ] `visionAuditStatus = PASS` 且 `visualOverlapCount = 0`。
+- [ ] 已逐页检查版式、构图、层级、色彩、字体观感、间距节奏和关键素材是否达到参考图目标。
+- [ ] `visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。
+- [ ] `visibleAssetSeamCount = 0`，没有明显矩形接缝、色带、纹理中断或错误渐变方向。
+- [ ] 所有轻微还原偏差已逐页记录；普通对象叠放若明显偏离参考图，已按还原度问题处理。
+- [ ] 若审计结论不稳定，已设置 `needsHumanReview` 并完成人工裁决。
+- [ ] 所有修复页已重新渲染并复审，没有复用旧预览。
+- [ ] QA 报告包含审计产物路径、修复项和剩余风险。

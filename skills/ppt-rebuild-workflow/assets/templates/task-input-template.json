@@ -1,0 +1,21 @@
+{
+  "taskMode": "",
+  "targetFont": "",
+  "sourcePptx": "",
+  "referenceImages": [],
+  "slideOrder": [],
+  "editableBoundary": {
+    "mayBakeIntoImage": [],
+    "mustRemainEditable": [],
+    "mustRemainIndependentImages": []
+  },
+  "assetStrategy": "",
+  "qaLevel": "",
+  "output": {
+    "directory": "",
+    "fileName": ""
+  },
+  "overwritePolicy": "forbid",
+  "permissionPolicy": "follow-current-thread-policy",
+  "notes": []
+}
