@@ -5,11 +5,13 @@ import {
   DEFAULT_OUTPUT_ROOT,
   addOutputIndex,
   appendFormValue,
+  buildAtlasEditPayload,
   buildApiPayload,
   buildDefaultImagePath,
   downloadReferenceImage,
   ensureFilesExist,
   extractGeneratedImages,
+  extractAtlasImages,
   loadAmbientEnv,
   mimeFor,
   postMultipart,
@@ -19,6 +21,7 @@ import {
   resolveImageOptions,
   resolveOutput,
   responseSummary,
+  runAtlasEdit,
   saveImage,
   savePrompt,
   slugify,
@@ -41,10 +44,10 @@ Required prompt input (choose one):
   --promptfile <path>      Load instructions from a UTF-8 file
 
 Routing and image parameters:
-  --profile <name>         auto | standard | vip (default: auto)
-  --model <name>           Explicit gpt-image-2 or gpt-image-2-vip override
-  --size <preset>          Listed output preset or ratio; not an arbitrary exact resolution
-  --quality <level>        VIP only: auto | low | medium | high
+  --profile <name>         auto | standard | hd (vip is a compatibility alias)
+  --model <name>           Explicit gpt-image-2 or openai/gpt-image-2/edit override
+  --size <preset>          Listed output size
+  --quality <level>        HD only: low | medium | high
 
 Output:
   --output <path>          Image path (default: ${DEFAULT_OUTPUT_ROOT}/edited/...)
@@ -54,7 +57,7 @@ Output:
   -h, --help               Show help
 
 Routing rule:
-  One reference defaults to gpt-image-2. Two or more references automatically use gpt-image-2-vip.`);
+  One reference defaults to gpt-image-2. Multiple references or quality control use AtlasCloud HD.`);
 }
 
 function parseArgs(argv) {
@@ -117,6 +120,17 @@ async function requestEdit(config, prompt, options, endpoint) {
   return postMultipart(endpoint, form);
 }
 
+async function atlasImages(config) {
+  if (config.urls.length > 0) return config.urls;
+  await ensureFilesExist(config.images);
+  return Promise.all(
+    config.images.map(async (imagePath) => {
+      const bytes = await readFile(imagePath);
+      return `data:${mimeFor(imagePath)};base64,${bytes.toString("base64")}`;
+    }),
+  );
+}
+
 async function run() {
   const config = parseArgs(process.argv.slice(2));
   if (config.help) return help();
@@ -140,8 +154,25 @@ async function run() {
   const hint = slugify(prompt.split(/\s+/).slice(0, 8).join(" "), "edited-image");
   const promptPath = await savePrompt(prompt, config.promptOutput, hint);
   const outputPath = resolveOutput(config.output, buildDefaultImagePath("edit", hint));
-  const response = await requestEdit(config, prompt, options, plan.endpoint);
-  const images = await extractGeneratedImages(response);
+  let response;
+  let images;
+  if (options.tier === "hd") {
+    const format = String(config.output || "").toLowerCase().endsWith(".jpg") ||
+      String(config.output || "").toLowerCase().endsWith(".jpeg")
+      ? "jpeg"
+      : "png";
+    response = await runAtlasEdit(
+      buildAtlasEditPayload(options, {
+        prompt,
+        images: await atlasImages(config),
+        outputFormat: format,
+      }),
+    );
+    images = await extractAtlasImages(response.outputs);
+  } else {
+    response = await requestEdit(config, prompt, options, plan.endpoint);
+    images = await extractGeneratedImages(response);
+  }
   const savedImages = [];
   for (let index = 0; index < images.length; index += 1) {
     const imagePath = addOutputIndex(outputPath, index, images.length);
@@ -156,7 +187,14 @@ async function run() {
       savedImages,
       savedPrompt: promptPath,
       ...imageSummary,
-      apiResponse: responseSummary(response),
+      apiResponse:
+        options.tier === "hd"
+          ? {
+              predictionId: response.predictionId,
+              imageCount: images.length,
+              hasNsfwContents: response.hasNsfwContents,
+            }
+          : responseSummary(response),
     });
   }
   console.log(savedImages.join("\n"));

@@ -1,15 +1,11 @@
 ---
 name: gpt-image-2-api
-description: Generate or edit images through the aifast.site GPT Image API with cost-aware routing. Use for text-to-image, local or URL reference editing, multi-reference composition, complex precision-sensitive graphics, and supported 1K/2K/4K output tiers. Default to gpt-image-2; use gpt-image-2-vip only for complex work, multiple references, quality control, or supported high-resolution presets.
+description: Generate images through the aifast.site GPT Image API and perform high-quality reference edits through AtlasCloud. Use for text-to-image, local or URL reference editing, multi-reference composition, quality-controlled edits, and supported 1K, 2K, or experimental 4K output. Default to the lower-cost standard route; use AtlasCloud HD for multiple references, explicit quality control, high resolution, or precision-sensitive editing.
 ---
 
 # GPT Image 2 API
 
-Run the bundled commands directly. Do not inspect scripts to discover usage.
-
-## Command Paths
-
-Run from this skill directory:
+Run the bundled commands from this skill directory:
 
 ```bash
 node scripts/generate.js ...
@@ -17,92 +13,73 @@ node scripts/edit.js ...
 node scripts/check-config.js
 ```
 
-Fixed endpoints:
-
-- Generate: `POST https://aifast.site/v1/images/generations`
-- Edit: `POST https://aifast.site/v1/images/edits`
-
 ## Route By Cost
 
-Use `--profile auto` unless semantic complexity requires VIP.
+Use `--profile auto` by default.
 
 | Task | Route |
 |---|---|
-| Daily illustration, avatar, product image, social post | Standard `gpt-image-2` |
+| Text-to-image | Standard `gpt-image-2` |
 | Ordinary edit with one reference | Standard `gpt-image-2` |
-| Complex infographic, architecture diagram, academic figure, dense UI/poster | VIP |
-| Fine typography, small labels, publication-grade detail | VIP |
-| Two or more references | Auto-upgrade to VIP |
-| Supported 2K/4K preset or explicit `quality` | Auto-upgrade to VIP |
+| Multiple references or explicit `--quality` | AtlasCloud HD |
+| Precision-sensitive edit | Explicit `--profile hd` |
 
-Never use VIP merely because it is available.
+`--profile vip` remains a compatibility alias for `hd`. Do not use the failed
+`gpt-image-2-vip` provider directly.
 
-## Treat Size As A Preset
-
-`--size` is a whitelist preset/aspect-ratio selector, not an arbitrary exact resolution.
-
-- Never invent values such as `1600x900`, `1920x1080`, or `4096x4096`.
-- Pixel-looking values are gateway tokens mapped to an upstream ratio/output tier.
-- Final dimensions may differ. Read `actualImages` from `--json`.
-- Read [references/api-reference.md](./references/api-reference.md) only to select an uncommon
-  preset or diagnose an API error.
+AtlasCloud HD currently uses `openai/gpt-image-2/edit`, so it requires at least one reference image.
+Use standard generation when no reference is available.
 
 ## Execute
 
-Always preview the paid request first:
+Preview the request before incurring cost:
 
 ```bash
-node scripts/generate.js --profile auto --prompt "A cozy reading corner" --dry-run
+node scripts/edit.js \
+  --profile hd \
+  --url https://example.com/source.jpg \
+  --prompt "Create a high-detail e-commerce poster" \
+  --size 2048x1152 \
+  --quality high \
+  --dry-run
 ```
 
-Check `selectedTier`, `model`, `size`, `quality`, and `routeReasons`, then rerun without `--dry-run`.
+Then rerun without `--dry-run`:
 
-Text-to-image:
+```bash
+node scripts/edit.js \
+  --profile hd \
+  --url https://example.com/source.jpg \
+  --prompt "Create a high-detail e-commerce poster" \
+  --size 2048x1152 \
+  --quality high \
+  --output output/poster.png \
+  --json
+```
+
+Standard text-to-image:
 
 ```bash
 node scripts/generate.js \
-  --profile auto \
   --prompt "A cozy reading corner" \
   --output output/result.png \
   --json
 ```
 
-Reference edit:
+Repeat `--image` for local references or `--url` for public references, up to 10 total. Never mix
+the two.
 
-```bash
-node scripts/edit.js \
-  --profile auto \
-  --image references/source.png \
-  --prompt "Replace the background with a warm studio" \
-  --output output/edited.png \
-  --json
-```
-
-Repeat `--image` for multiple local references. Use repeatable `--url` for public references. Never
-mix `--image` and `--url`.
-
-For semantically complex work, force VIP and choose a listed preset:
-
-```bash
-node scripts/generate.js \
-  --profile vip \
-  --size 2560x1440 \
-  --quality high \
-  --promptfile prompts/task.md \
-  --output output/high-detail.png \
-  --json
-```
-
-## Essential Parameters
+## Parameters
 
 - Prompt: use exactly one of `--prompt` or `--promptfile`.
-- Routing: `--profile auto|standard|vip`; prefer this over `--model`.
-- Output preset: `--size <listed-preset-or-ratio>`.
-- VIP sampling: `--quality auto|low|medium|high`; never use with standard.
-- Generate count: `--n <integer from 1 to 10>`; the script backfills if the gateway returns too few images.
-- Result: `--output`, optional `--prompt-output`, and recommended `--json`.
+- Routing: `--profile auto|standard|hd`.
+- HD size: use one of the 7 AtlasCloud Schema values. Prefer `2048x2048` or `2048x1152`;
+  use 4K only when explicitly requested.
+- HD quality: use `low`, `medium`, or `high`.
+- Output: use `--output`, optional `--prompt-output`, and recommended `--json`.
 
-When `--output` is omitted, results go to `gpt-image-2-output/generated/` or `edited/`; prompts go to
-`gpt-image-2-output/prompts/`.
+Read [references/api-reference.md](./references/api-reference.md) for provider payloads, supported
+sizes, polling behavior, configuration, or API error diagnosis.
 
-Require Node.js 18+ and `OPENAI_API_KEY`. Never store a real key in this skill or Git.
+Require Node.js 18+. Configure `OPENAI_API_KEY` for the standard route and
+`ATLASCLOUD_API_KEY` for AtlasCloud HD. Never store real keys in this skill or Git.

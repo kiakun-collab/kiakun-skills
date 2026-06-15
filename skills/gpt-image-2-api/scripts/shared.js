@@ -6,18 +6,23 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 export const DEFAULT_OUTPUT_ROOT = "gpt-image-2-output";
 export const DEFAULT_PROMPT_DIR = path.join(DEFAULT_OUTPUT_ROOT, "prompts");
 export const DEFAULT_BASE_URL = "https://aifast.site/v1";
+export const DEFAULT_ATLAS_BASE_URL = "https://api.atlascloud.ai/api/v1/model";
 export const STANDARD_MODEL = "gpt-image-2";
-export const VIP_MODEL = "gpt-image-2-vip";
+export const HD_MODEL = "openai/gpt-image-2/edit";
+export const VIP_MODEL = HD_MODEL;
 export const DEFAULT_PROFILE = "auto";
 export const DEFAULT_STANDARD_SIZE = "1024x1024";
-export const DEFAULT_VIP_SIZE = "2048x2048";
-export const DEFAULT_VIP_QUALITY = "high";
+export const DEFAULT_HD_SIZE = "2048x2048";
+export const DEFAULT_HD_QUALITY = "high";
+export const DEFAULT_VIP_SIZE = DEFAULT_HD_SIZE;
+export const DEFAULT_VIP_QUALITY = DEFAULT_HD_QUALITY;
 export const DEFAULT_TIMEOUT_MS = 300_000;
 export const DEFAULT_MAX_RETRIES = 2;
+export const DEFAULT_ATLAS_POLL_INTERVAL_MS = 2_000;
 export const MAX_GENERATION_COUNT = 10;
 
-const VALID_PROFILES = new Set(["auto", "standard", "vip"]);
-const VALID_QUALITIES = new Set(["auto", "low", "medium", "high"]);
+const VALID_PROFILES = new Set(["auto", "standard", "hd", "vip"]);
+const VALID_QUALITIES = new Set(["low", "medium", "high"]);
 const RATIO_SIZES = new Set([
   "auto",
   "1:1",
@@ -47,27 +52,14 @@ const STANDARD_PIXEL_SIZES = new Set([
   "1280x720",
   "720x1280",
 ]);
-const VIP_PIXEL_SIZES = new Set([
+const HD_PIXEL_SIZES = new Set([
+  "1024x1024",
+  "1024x1536",
+  "1536x1024",
   "2048x2048",
-  "2880x2880",
-  "2560x1440",
+  "2048x1152",
   "3840x2160",
-  "1440x2560",
   "2160x3840",
-  "2304x1728",
-  "3264x2448",
-  "1728x2304",
-  "2448x3264",
-  "2496x1664",
-  "3504x2336",
-  "1664x2496",
-  "2336x3504",
-  "2240x1792",
-  "3200x2560",
-  "1792x2240",
-  "2560x3200",
-  "3024x1296",
-  "3696x1584",
 ]);
 
 export async function readEnvFile(filePath) {
@@ -125,9 +117,27 @@ export function buildBaseUrl() {
   return raw;
 }
 
+export function buildAtlasBaseUrl() {
+  const raw = (process.env.ATLASCLOUD_BASE_URL || DEFAULT_ATLAS_BASE_URL)
+    .trim()
+    .replace(/\/+$/, "");
+  try {
+    new URL(raw);
+  } catch {
+    throw new Error(`ATLASCLOUD_BASE_URL is not a valid URL: ${raw}`);
+  }
+  return raw;
+}
+
 export function requireApiKey() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is required.");
+  return apiKey;
+}
+
+export function requireAtlasApiKey() {
+  const apiKey = process.env.ATLASCLOUD_API_KEY;
+  if (!apiKey) throw new Error("ATLASCLOUD_API_KEY is required for the HD profile.");
   return apiKey;
 }
 
@@ -141,10 +151,10 @@ function parseInteger(value, fallback, label, minimum = 0) {
 
 function normalizeModel(model) {
   if (!model) return null;
-  if (model !== STANDARD_MODEL && model !== VIP_MODEL) {
-    throw new Error(`model must be ${STANDARD_MODEL} or ${VIP_MODEL}.`);
+  if (model !== STANDARD_MODEL && model !== HD_MODEL && model !== "gpt-image-2-vip") {
+    throw new Error(`model must be ${STANDARD_MODEL} or ${HD_MODEL}.`);
   }
-  return model;
+  return model === "gpt-image-2-vip" ? HD_MODEL : model;
 }
 
 function validateSize(size, tier) {
@@ -156,9 +166,9 @@ function validateSize(size, tier) {
     }
     return;
   }
-  if (!VIP_PIXEL_SIZES.has(size)) {
+  if (!HD_PIXEL_SIZES.has(size)) {
     throw new Error(
-      `Unsupported VIP output preset: ${size}. Use a documented 2K/4K preset such as ${DEFAULT_VIP_SIZE} or 3840x2160; arbitrary resolutions are not supported.`,
+      `Unsupported HD output size: ${size}. Use an AtlasCloud schema size such as ${DEFAULT_HD_SIZE}, 2048x1152, or 3840x2160.`,
     );
   }
 }
@@ -167,7 +177,8 @@ export function resolveImageOptions(
   { profile, model, size, quality, n } = {},
   { referenceCount = 0 } = {},
 ) {
-  const requestedProfile = profile || process.env.GPT_IMAGE_PROFILE || DEFAULT_PROFILE;
+  const rawProfile = profile || process.env.GPT_IMAGE_PROFILE || DEFAULT_PROFILE;
+  const requestedProfile = rawProfile === "vip" ? "hd" : rawProfile;
   if (!VALID_PROFILES.has(requestedProfile)) {
     throw new Error(`profile must be one of: ${[...VALID_PROFILES].join(", ")}.`);
   }
@@ -182,58 +193,65 @@ export function resolveImageOptions(
     explicitModel &&
     requestedProfile !== "auto" &&
     ((requestedProfile === "standard" && explicitModel === VIP_MODEL) ||
-      (requestedProfile === "vip" && explicitModel === STANDARD_MODEL))
+      (requestedProfile === "hd" && explicitModel === STANDARD_MODEL))
   ) {
     throw new Error(`profile ${requestedProfile} conflicts with explicit model ${explicitModel}.`);
   }
 
-  const vipReasons = [];
-  if (referenceCount >= 2) vipReasons.push("multiple-reference-images");
-  if (requestedQuality) vipReasons.push("quality-control-requested");
-  if (requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
-    vipReasons.push("2k-or-4k-preset-requested");
+  const hdReasons = [];
+  if (referenceCount >= 2) hdReasons.push("multiple-reference-images");
+  if (requestedQuality) hdReasons.push("quality-control-requested");
+  if (
+    requestedSize &&
+    HD_PIXEL_SIZES.has(requestedSize) &&
+    !STANDARD_PIXEL_SIZES.has(requestedSize)
+  ) {
+    hdReasons.push("hd-size-requested");
   }
 
   let tier;
   if (explicitModel) {
-    tier = explicitModel === VIP_MODEL ? "vip" : "standard";
-  } else if (requestedProfile === "standard" || requestedProfile === "vip") {
+    tier = explicitModel === HD_MODEL ? "hd" : "standard";
+  } else if (requestedProfile === "standard" || requestedProfile === "hd") {
     tier = requestedProfile;
   } else {
-    tier = vipReasons.length > 0 ? "vip" : "standard";
+    tier = hdReasons.length > 0 ? "hd" : "standard";
   }
 
   if (tier === "standard" && referenceCount >= 2) {
-    throw new Error("Two or more reference images require profile vip or profile auto.");
+    throw new Error("Two or more reference images require profile hd or profile auto.");
   }
   if (tier === "standard" && requestedQuality) {
-    throw new Error("quality is only supported by gpt-image-2-vip.");
+    throw new Error("quality is only supported by the AtlasCloud HD profile.");
   }
-  if (tier === "standard" && requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
-    throw new Error("2K/4K output presets require profile vip or profile auto.");
+  if (tier === "standard" && requestedSize && !STANDARD_PIXEL_SIZES.has(requestedSize) && !RATIO_SIZES.has(requestedSize)) {
+    throw new Error("This output size requires profile hd or profile auto.");
   }
 
   const resolvedSize =
     requestedSize ||
-    (tier === "vip"
-      ? process.env.GPT_IMAGE_VIP_SIZE || DEFAULT_VIP_SIZE
+    (tier === "hd"
+      ? process.env.GPT_IMAGE_HD_SIZE || process.env.GPT_IMAGE_VIP_SIZE || DEFAULT_HD_SIZE
       : process.env.GPT_IMAGE_STANDARD_SIZE || DEFAULT_STANDARD_SIZE);
   validateSize(resolvedSize, tier);
 
   const resolvedQuality =
-    tier === "vip"
-      ? requestedQuality || process.env.GPT_IMAGE_VIP_QUALITY || DEFAULT_VIP_QUALITY
+    tier === "hd"
+      ? requestedQuality ||
+        process.env.GPT_IMAGE_HD_QUALITY ||
+        process.env.GPT_IMAGE_VIP_QUALITY ||
+        DEFAULT_HD_QUALITY
       : null;
-  const resolvedModel = tier === "vip" ? VIP_MODEL : STANDARD_MODEL;
+  const resolvedModel = tier === "hd" ? HD_MODEL : STANDARD_MODEL;
   const resolvedCount = parseInteger(n ?? process.env.GPT_IMAGE_N, 1, "n", 1);
   if (resolvedCount > MAX_GENERATION_COUNT) {
     throw new Error(`n must be an integer between 1 and ${MAX_GENERATION_COUNT}.`);
   }
   const routeReasons =
-    tier === "vip"
-      ? vipReasons.length > 0
-        ? vipReasons
-        : [explicitModel ? "explicit-vip-model" : "explicit-vip-profile"]
+    tier === "hd"
+      ? hdReasons.length > 0
+        ? hdReasons
+        : [explicitModel ? "explicit-hd-model" : "explicit-hd-profile"]
       : [explicitModel ? "explicit-standard-model" : "cost-saving-default"];
 
   return {
@@ -255,6 +273,23 @@ export function buildApiPayload(options, extra = {}) {
   };
   if (options.quality) payload.quality = options.quality;
   return payload;
+}
+
+export function buildAtlasEditPayload(options, { prompt, images, outputFormat = "png" }) {
+  if (!Array.isArray(images) || images.length < 1 || images.length > 10) {
+    throw new Error("AtlasCloud requires between 1 and 10 reference images.");
+  }
+  return {
+    model: HD_MODEL,
+    enable_base64_output: false,
+    enable_sync_mode: false,
+    images,
+    output_format: outputFormat,
+    prompt,
+    quality: options.quality,
+    size: options.size,
+    moderation: "low",
+  };
 }
 
 export async function readPromptInput(prompt, promptFile) {
@@ -495,6 +530,95 @@ export function postMultipart(url, form) {
   }));
 }
 
+async function atlasRequest(url, { method = "GET", payload } = {}) {
+  const apiKey = requireAtlasApiKey();
+  const timeoutMs = parseInteger(
+    process.env.OPENAI_IMAGE_TIMEOUT_MS,
+    DEFAULT_TIMEOUT_MS,
+    "OPENAI_IMAGE_TIMEOUT_MS",
+    1000,
+  );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        ...(payload ? { "content-type": "application/json" } : {}),
+      },
+      body: payload ? JSON.stringify(payload) : undefined,
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`AtlasCloud API error (${response.status}): ${errorMessage(text, response.status)}`);
+    }
+    return text ? JSON.parse(text) : {};
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(`AtlasCloud API request timed out after ${timeoutMs} ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function runAtlasEdit(payload) {
+  const baseUrl = buildAtlasBaseUrl();
+  const started = await atlasRequest(`${baseUrl}/generateImage`, {
+    method: "POST",
+    payload,
+  });
+  const startData = started?.data || started;
+  const predictionId = startData?.id;
+  if (!predictionId) throw new Error("AtlasCloud response did not include an id.");
+
+  const timeoutMs = parseInteger(
+    process.env.ATLASCLOUD_POLL_TIMEOUT_MS,
+    DEFAULT_TIMEOUT_MS,
+    "ATLASCLOUD_POLL_TIMEOUT_MS",
+    1000,
+  );
+  const intervalMs = parseInteger(
+    process.env.ATLASCLOUD_POLL_INTERVAL_MS,
+    DEFAULT_ATLAS_POLL_INTERVAL_MS,
+    "ATLASCLOUD_POLL_INTERVAL_MS",
+    100,
+  );
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const result = await atlasRequest(`${baseUrl}/result/${encodeURIComponent(predictionId)}`);
+    const resultData = result?.data || result;
+    const status = resultData?.status;
+    if (status === "completed") {
+      const outputs = resultData?.outputs;
+      if (!Array.isArray(outputs) || outputs.length === 0) {
+        throw new Error("AtlasCloud completed without outputs.");
+      }
+      return {
+        predictionId,
+        outputs,
+        hasNsfwContents: resultData?.has_nsfw_contents || [],
+        response: result,
+      };
+    }
+    if (status === "failed") {
+      throw new Error(resultData?.error || "AtlasCloud image generation failed.");
+    }
+    if (!["created", "processing", "pending", "queued", undefined].includes(status)) {
+      throw new Error(`AtlasCloud returned an unknown status: ${status}`);
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(`AtlasCloud prediction timed out after ${timeoutMs} ms.`);
+}
+
+export async function extractAtlasImages(outputs) {
+  return Promise.all(outputs.map((url) => downloadImage(url)));
+}
+
 export async function downloadReferenceImage(rawUrl) {
   let url;
   try {
@@ -562,9 +686,13 @@ export function appendFormValue(form, key, value) {
 }
 
 export function publicPlan(operation, options, extra = {}) {
+  const isHd = options.tier === "hd";
   return {
     operation,
-    endpoint: `${buildBaseUrl()}/images/${operation === "edit" ? "edits" : "generations"}`,
+    provider: isHd ? "atlascloud" : "aifast",
+    endpoint: isHd
+      ? `${buildAtlasBaseUrl()}/generateImage`
+      : `${buildBaseUrl()}/images/${operation === "edit" ? "edits" : "generations"}`,
     requestedProfile: options.requestedProfile,
     selectedTier: options.tier,
     model: options.model,
