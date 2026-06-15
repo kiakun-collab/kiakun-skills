@@ -1,141 +1,92 @@
 # GPT Image 2 API Reference
 
-Source: `https://9nnc8eo3c5.apifox.cn/8671595m0.md` (updated 2026-04-30).
+## Providers
 
-## Models
-
-| Model | Use | Supported output tier | Quality parameter |
+| Route | Provider | Model | Use |
 |---|---|---|---|
-| `gpt-image-2` | Default daily generation and ordinary single-reference edits | Up to 1K | Not effective; omit it |
-| `gpt-image-2-vip` | Complex/high-precision work, multiple references, 2K/4K | 1K/2K/4K | `auto`, `low`, `medium`, `high` |
+| Standard | aifast.site | `gpt-image-2` | Generation and ordinary edits |
+| HD | AtlasCloud | `openai/gpt-image-2/edit` | High-quality reference edits |
 
-## Routes
+The former `gpt-image-2-vip` route is disabled. `--profile vip` is accepted only as an alias for
+the AtlasCloud `hd` profile.
 
-| Operation | Method | Path | Body |
-|---|---|---|---|
-| Text-to-image | POST | `/v1/images/generations` | JSON |
-| Local reference edit | POST | `/v1/images/edits` | multipart form |
-| Public URL reference edit | POST | `/v1/images/edits` | Script downloads URLs and uploads multipart |
+## Standard Route
 
-Authentication:
+- Generate: `POST https://aifast.site/v1/images/generations`
+- Edit: `POST https://aifast.site/v1/images/edits`
+- Authentication: `OPENAI_API_KEY`
+- Generate body: JSON
+- Edit body: multipart form
+
+## AtlasCloud HD Route
+
+Submit:
 
 ```http
-Authorization: Bearer <OPENAI_API_KEY>
+POST https://api.atlascloud.ai/api/v1/model/generateImage
+Authorization: Bearer <ATLASCLOUD_API_KEY>
+Content-Type: application/json
 ```
 
-## Generate Parameters
-
-| Parameter | Type | Required | Rules |
-|---|---|---|---|
-| `model` | string | Yes | `gpt-image-2` or `gpt-image-2-vip` |
-| `prompt` | string | Yes | Image description |
-| `n` | integer | No | `1` to `10`; default `1` |
-| `size` | string | No | Supported preset token or aspect ratio; not arbitrary exact dimensions |
-| `quality` | string | No | VIP only |
-| `response_format` | string | No | Always use `b64_json` |
-
-## Edit Parameters
-
-| Parameter | Type | Required | Rules |
-|---|---|---|---|
-| `model` | string | Yes | Standard or VIP |
-| `prompt` | string | Yes | Edit instruction |
-| `image` | file | For multipart | PNG, JPEG, or WebP; repeatable |
-| `urls` | string[] | Documented gateway extension | Do not send directly; live testing found the gateway expects multipart |
-| `size` | string | No | Supported preset token or aspect ratio; not arbitrary exact dimensions |
-| `quality` | string | No | VIP only |
-
-## Size Semantics
-
-The API field is named `size`, but it is not a free-form resolution control. The gateway converts
-pixel-looking values to the upstream `aspectRatio` field. Therefore:
-
-- Only use a token listed below.
-- Values such as `1600x900`, `1920x1080`, and `4096x4096` are unsupported unless explicitly listed.
-- Several tokens can map to the same aspect ratio.
-- The final PNG dimensions are selected by the model/gateway and may differ from the token.
-- Treat 1K/2K/4K as supported output tiers, not a promise of arbitrary pixel dimensions.
-
-Live standard-model tests returned `1254x1254` for both `256x256` and `1024x1024` requests. The
-scripts report actual dimensions so callers do not mistake the request token for the final file size.
-
-## Standard Preset Tokens
-
-Use these with `gpt-image-2`:
-
-| Preset token | Mapped ratio / purpose |
-|---|---|
-| `1024x1024` | 1:1 default |
-| `512x512` | Small square |
-| `256x256` | Minimum square |
-| `1536x1024` | 3:2 landscape |
-| `1792x1024` | 3:2 wide landscape |
-| `1024x1536` | 2:3 portrait |
-| `1024x1792` | 2:3 tall portrait |
-| `1280x720` | 16:9 |
-| `720x1280` | 9:16 |
-| `auto` | Model decides |
-
-Supported ratio strings:
-
-`1:1`, `3:2`, `2:3`, `4:3`, `3:4`, `5:4`, `4:5`, `16:9`, `9:16`, `21:9`, `9:21`, `2:1`, `1:2`, `3:1`, `1:3`, `auto`.
-
-## VIP 2K / 4K Preset Tokens
-
-| Ratio | 2K | 4K |
-|---|---|---|
-| 1:1 | `2048x2048` | `2880x2880` |
-| 16:9 | `2560x1440` | `3840x2160` |
-| 9:16 | `1440x2560` | `2160x3840` |
-| 4:3 | `2304x1728` | `3264x2448` |
-| 3:4 | `1728x2304` | `2448x3264` |
-| 3:2 | `2496x1664` | `3504x2336` |
-| 2:3 | `1664x2496` | `2336x3504` |
-| 5:4 | `2240x1792` | `3200x2560` |
-| 4:5 | `1792x2240` | `2560x3200` |
-| 21:9 | `3024x1296` | `3696x1584` |
-
-Use one of the listed 2K/4K preset tokens for VIP. Do not substitute a custom resolution. A live
-gateway test observed `1024x1024` being converted to `1:1` and rejected by the VIP upstream.
-
-## Quality
-
-VIP only:
-
-| Value | Meaning |
-|---|---|
-| `auto` | Automatic |
-| `low` | Fastest, least detail |
-| `medium` | Balanced |
-| `high` | Most detail, slowest |
-
-Quality controls sampling detail, not the output specification. Select only a supported preset or
-ratio with `size`.
-
-## Response
+Payload:
 
 ```json
 {
-  "created": 1714444800,
-  "data": [
-    {
-      "b64_json": "..."
-    }
-  ]
+  "model": "openai/gpt-image-2/edit",
+  "enable_base64_output": false,
+  "enable_sync_mode": false,
+  "images": ["https://example.com/reference.jpg"],
+  "output_format": "png",
+  "prompt": "Edit instruction",
+  "quality": "high",
+  "size": "1536x1024",
+  "moderation": "low"
 }
 ```
 
-The scripts decode every `data[]` item to PNG and also accept `data[].url` for compatibility.
-Live testing found that the gateway may ignore `n > 1` and return one image. The generation script
-automatically makes follow-up requests until it has saved the requested number of images.
+Poll:
 
-## Errors
+```http
+GET https://api.atlascloud.ai/api/v1/model/result/<request-id>
+Authorization: Bearer <ATLASCLOUD_API_KEY>
+```
 
-| Status | Meaning | Retry |
-|---|---|---|
-| `400` | Policy block or invalid parameters | No |
-| `401` | Invalid/expired API key | No |
-| `429` | Rate limit | Yes |
-| `500` | Upstream failure | Yes |
+The OpenAPI Schema returns prediction fields at the response root. The scripts also accept a
+`data` wrapper for compatibility with the earlier code example.
 
-Policy-blocked HTTP 400 requests are documented as not charged.
+Continue while status is `created` or `processing`. On `completed`, download every URL in
+`outputs`. On `failed`, surface the returned error. Preserve `has_nsfw_contents` in JSON output.
+
+The scripts accept 1 to 10 public reference URLs. Local PNG, JPEG, and WebP files are encoded as
+data URLs for the Atlas request.
+
+## HD Parameters
+
+- Model: always `openai/gpt-image-2/edit`
+- Quality: `low`, `medium`, or `high`
+- Output format: `png` or `jpeg`, inferred from `--output`
+- Default size: `2048x2048`
+- Schema size enum: `1024x1024`, `1024x1536`, `1536x1024`, `2048x2048`, `2048x1152`,
+  `3840x2160`, `2160x3840`
+
+The Schema description says arbitrary GPT Image 2 resolutions may be accepted when both dimensions
+are divisible by 16, the ratio is between 1:3 and 3:1, and the maximum is `3840x2160`. However, the
+same Schema declares a strict 7-value enum. The scripts follow the enum to avoid paid invalid
+requests. Resolutions above `2560x1440` are experimental.
+
+## Configuration
+
+```dotenv
+OPENAI_API_KEY=
+OPENAI_BASE_URL=https://aifast.site/v1
+
+ATLASCLOUD_API_KEY=
+ATLASCLOUD_BASE_URL=https://api.atlascloud.ai/api/v1/model
+ATLASCLOUD_POLL_INTERVAL_MS=2000
+ATLASCLOUD_POLL_TIMEOUT_MS=300000
+
+GPT_IMAGE_PROFILE=auto
+GPT_IMAGE_STANDARD_SIZE=1024x1024
+GPT_IMAGE_HD_SIZE=2048x2048
+GPT_IMAGE_HD_QUALITY=high
+```
