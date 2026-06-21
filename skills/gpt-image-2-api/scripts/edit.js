@@ -24,6 +24,7 @@ import {
   runAtlasEdit,
   saveImage,
   savePrompt,
+  shouldUseAtlasFallback,
   slugify,
   summarizeSavedImages,
 } from "./shared.js";
@@ -44,10 +45,10 @@ Required prompt input (choose one):
   --promptfile <path>      Load instructions from a UTF-8 file
 
 Routing and image parameters:
-  --profile <name>         auto | standard | hd (vip is a compatibility alias)
-  --model <name>           Explicit gpt-image-2 or openai/gpt-image-2/edit override
-  --size <preset>          Listed output size
-  --quality <level>        HD only: low | medium | high
+  --profile <name>         auto | standard | vip | atlas (hd is a vip compatibility alias)
+  --model <name>           Explicit gpt-image-2, gpt-image-2-vip, or openai/gpt-image-2/edit
+  --size <preset>          Listed output preset
+  --quality <level>        VIP/Atlas only: auto | low | medium | high
 
 Output:
   --output <path>          Image path (default: ${DEFAULT_OUTPUT_ROOT}/edited/...)
@@ -57,7 +58,8 @@ Output:
   -h, --help               Show help
 
 Routing rule:
-  One reference defaults to gpt-image-2. Multiple references or quality control use AtlasCloud HD.`);
+  One reference defaults to gpt-image-2. Multiple references or quality control use gpt-image-2-vip.
+  VIP failures fall back to AtlasCloud when ATLASCLOUD_API_KEY is configured.`);
 }
 
 function parseArgs(argv) {
@@ -131,6 +133,20 @@ async function atlasImages(config) {
   );
 }
 
+async function requestAtlasEdit(config, prompt, options) {
+  const format = String(config.output || "").toLowerCase().endsWith(".jpg") ||
+    String(config.output || "").toLowerCase().endsWith(".jpeg")
+    ? "jpeg"
+    : "png";
+  return runAtlasEdit(
+    buildAtlasEditPayload(options, {
+      prompt,
+      images: await atlasImages(config),
+      outputFormat: format,
+    }),
+  );
+}
+
 async function run() {
   const config = parseArgs(process.argv.slice(2));
   if (config.help) return help();
@@ -156,22 +172,22 @@ async function run() {
   const outputPath = resolveOutput(config.output, buildDefaultImagePath("edit", hint));
   let response;
   let images;
-  if (options.tier === "hd") {
-    const format = String(config.output || "").toLowerCase().endsWith(".jpg") ||
-      String(config.output || "").toLowerCase().endsWith(".jpeg")
-      ? "jpeg"
-      : "png";
-    response = await runAtlasEdit(
-      buildAtlasEditPayload(options, {
-        prompt,
-        images: await atlasImages(config),
-        outputFormat: format,
-      }),
-    );
+  let usedProvider = plan.provider;
+  let fallbackFrom = null;
+  if (options.tier === "atlas") {
+    response = await requestAtlasEdit(config, prompt, options);
     images = await extractAtlasImages(response.outputs);
   } else {
-    response = await requestEdit(config, prompt, options, plan.endpoint);
-    images = await extractGeneratedImages(response);
+    try {
+      response = await requestEdit(config, prompt, options, plan.endpoint);
+      images = await extractGeneratedImages(response);
+    } catch (error) {
+      if (options.tier !== "vip" || !shouldUseAtlasFallback(error)) throw error;
+      fallbackFrom = error instanceof Error ? error.message : String(error);
+      response = await requestAtlasEdit(config, prompt, options);
+      images = await extractAtlasImages(response.outputs);
+      usedProvider = "atlascloud";
+    }
   }
   const savedImages = [];
   for (let index = 0; index < images.length; index += 1) {
@@ -184,11 +200,13 @@ async function run() {
   if (config.json) {
     return printJson({
       ...plan,
+      usedProvider,
+      fallbackFrom,
       savedImages,
       savedPrompt: promptPath,
       ...imageSummary,
       apiResponse:
-        options.tier === "hd"
+        usedProvider === "atlascloud"
           ? {
               predictionId: response.predictionId,
               imageCount: images.length,

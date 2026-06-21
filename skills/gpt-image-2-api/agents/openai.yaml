@@ -1,4 +1,4 @@
 interface:
   display_name: "GPT Image 2 API"
-  short_description: "Standard generation and AtlasCloud HD editing"
-  default_prompt: "Use $gpt-image-2-api to generate an image or perform a high-quality AtlasCloud reference edit."
+  short_description: "Standard/VIP image API with Atlas fallback"
+  default_prompt: "Use $gpt-image-2-api to generate or edit images with standard/VIP routing and AtlasCloud fallback."

@@ -61,8 +61,10 @@ function testEnv(baseUrl) {
     ATLASCLOUD_POLL_TIMEOUT_MS: "5000",
     GPT_IMAGE_PROFILE: "auto",
     GPT_IMAGE_STANDARD_SIZE: "1024x1024",
-    GPT_IMAGE_HD_SIZE: "2048x2048",
-    GPT_IMAGE_HD_QUALITY: "high",
+    GPT_IMAGE_VIP_SIZE: "2048x2048",
+    GPT_IMAGE_VIP_QUALITY: "high",
+    GPT_IMAGE_ATLAS_SIZE: "2048x2048",
+    GPT_IMAGE_ATLAS_QUALITY: "high",
     GPT_IMAGE_N: "1",
     OPENAI_IMAGE_MAX_RETRIES: "0",
     // Old global settings must not force this skill onto VIP.
@@ -91,42 +93,42 @@ test("rejects image counts above the paid-request safety limit", () => {
   );
 });
 
-test("auto selects AtlasCloud HD for a quality request", () => {
+test("auto selects VIP for a quality request", () => {
   const options = resolveImageOptions({ size: "3840x2160", quality: "high" });
-  assert.equal(options.model, "openai/gpt-image-2/edit");
-  assert.equal(options.tier, "hd");
+  assert.equal(options.model, "gpt-image-2-vip");
+  assert.equal(options.tier, "vip");
   assert.deepEqual(options.routeReasons, [
     "quality-control-requested",
-    "hd-size-requested",
+    "2k-or-4k-preset-requested",
   ]);
 });
 
-test("auto selects AtlasCloud HD for multiple reference images", () => {
+test("auto selects VIP for multiple reference images", () => {
   const options = resolveImageOptions({}, { referenceCount: 2 });
-  assert.equal(options.model, "openai/gpt-image-2/edit");
+  assert.equal(options.model, "gpt-image-2-vip");
   assert.equal(options.size, "2048x2048");
   assert.deepEqual(options.routeReasons, ["multiple-reference-images"]);
 });
 
-test("standard profile rejects HD-only parameters", () => {
+test("standard profile rejects VIP-only parameters", () => {
   assert.throws(
     () => resolveImageOptions({ profile: "standard", quality: "high" }),
     /quality is only supported/,
   );
   assert.throws(
     () => resolveImageOptions({ profile: "standard", size: "2048x2048" }),
-    /requires profile hd/,
+    /2K\/4K output presets require/,
   );
 });
 
 test("rejects arbitrary resolutions that are not documented presets", () => {
   assert.throws(
     () => resolveImageOptions({ profile: "standard", size: "1600x900" }),
-    /requires profile hd/,
+    /requires profile vip/,
   );
   assert.throws(
-    () => resolveImageOptions({ profile: "hd", size: "4096x4096" }),
-    /Unsupported HD output size/,
+    () => resolveImageOptions({ profile: "vip", size: "4096x4096" }),
+    /Unsupported VIP output preset/,
   );
 });
 
@@ -140,12 +142,12 @@ test("accepts every AtlasCloud schema size", () => {
     "3840x2160",
     "2160x3840",
   ]) {
-    assert.equal(resolveImageOptions({ profile: "hd", size }).size, size);
+    assert.equal(resolveImageOptions({ profile: "atlas", size }).size, size);
   }
 });
 
 test("AtlasCloud payload enforces one to ten reference images", () => {
-  const options = resolveImageOptions({ profile: "hd" }, { referenceCount: 1 });
+  const options = resolveImageOptions({ profile: "atlas" }, { referenceCount: 1 });
   assert.throws(
     () => buildAtlasEditPayload(options, { prompt: "test", images: [] }),
     /between 1 and 10/,
@@ -377,19 +379,43 @@ test("generation does not retry a 400 response", async () => {
   }
 });
 
-test("HD generation directs callers to reference editing", async () => {
-  const cwd = await mkdtemp(path.join(tmpdir(), "hd-generate-"));
+test("VIP generation sends size and quality", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "vip-generate-"));
+  let body;
   try {
-    await assert.rejects(
-      () =>
+    await withGateway(
+      async (request, response) => {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      (baseUrl) =>
         runNode(
           "generate.js",
-          ["--profile", "hd", "--prompt", "complex infographic"],
+          [
+            "--profile",
+            "vip",
+            "--prompt",
+            "complex infographic",
+            "--size",
+            "2560x1440",
+            "--quality",
+            "high",
+            "--output",
+            "result.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
           cwd,
-          testEnv("http://127.0.0.1:1"),
+          testEnv(baseUrl),
         ),
-      /requires at least one reference image/,
     );
+    assert.equal(body.model, "gpt-image-2-vip");
+    assert.equal(body.size, "2560x1440");
+    assert.equal(body.quality, "high");
+    assert.equal("response_format" in body, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -476,18 +502,71 @@ test("URL-reference edit downloads the image and uploads multipart", async () =>
   }
 });
 
-test("multi-reference edit uses AtlasCloud async prediction", async () => {
-  const cwd = await mkdtemp(path.join(tmpdir(), "hd-edit-"));
-  let submitted;
+test("multi-reference edit uses VIP first", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "vip-edit-"));
+  let multipart = "";
   try {
     await writeFile(path.join(cwd, "one.png"), PNG);
     await writeFile(path.join(cwd, "two.png"), PNG);
     await withGateway(
       async (request, response) => {
+        assert.equal(request.url, "/v1/images/edits");
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        multipart = Buffer.concat(chunks).toString("latin1");
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      (baseUrl) =>
+        runNode(
+          "edit.js",
+          [
+            "--image",
+            "one.png",
+            "--image",
+            "two.png",
+            "--prompt",
+            "combine references",
+            "--output",
+            "edited.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
+          cwd,
+          testEnv(baseUrl),
+        ),
+    );
+    assert.equal((multipart.match(/name="image"/g) || []).length, 2);
+    assert.match(multipart, /name="model"\r\n\r\ngpt-image-2-vip/);
+    assert.match(multipart, /name="quality"\r\n\r\nhigh/);
+    assert.deepEqual(await readFile(path.join(cwd, "edited.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("VIP edit falls back to AtlasCloud after upstream failure", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "vip-fallback-edit-"));
+  let vipRequests = 0;
+  let atlasSubmitted;
+  try {
+    await writeFile(path.join(cwd, "one.png"), PNG);
+    await writeFile(path.join(cwd, "two.png"), PNG);
+    await withGateway(
+      async (request, response) => {
+        if (request.method === "POST" && request.url === "/v1/images/edits") {
+          vipRequests += 1;
+          for await (const _chunk of request) {
+            // Drain the multipart body before failing VIP.
+          }
+          response.writeHead(500, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: { message: "vip unavailable" } }));
+          return;
+        }
         if (request.method === "POST" && request.url === "/api/v1/model/generateImage") {
           const chunks = [];
           for await (const chunk of request) chunks.push(chunk);
-          submitted = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          atlasSubmitted = JSON.parse(Buffer.concat(chunks).toString("utf8"));
           assert.equal(request.headers.authorization, "Bearer atlas-test-key");
           response.writeHead(200, { "content-type": "application/json" });
           response.end(JSON.stringify({ id: "prediction-1", status: "created", outputs: [] }));
@@ -522,20 +601,26 @@ test("multi-reference edit uses AtlasCloud async prediction", async () => {
             "two.png",
             "--prompt",
             "combine references",
+            "--size",
+            "2560x1440",
+            "--quality",
+            "high",
             "--output",
             "edited.png",
             "--prompt-output",
             "prompt.md",
+            "--json",
           ],
           cwd,
           testEnv(baseUrl),
         ),
     );
-    assert.equal(submitted.model, "openai/gpt-image-2/edit");
-    assert.equal(submitted.size, "2048x2048");
-    assert.equal(submitted.quality, "high");
-    assert.equal(submitted.images.length, 2);
-    assert.match(submitted.images[0], /^data:image\/png;base64,/);
+    assert.equal(vipRequests, 1);
+    assert.equal(atlasSubmitted.model, "openai/gpt-image-2/edit");
+    assert.equal(atlasSubmitted.size, "2048x1152");
+    assert.equal(atlasSubmitted.quality, "high");
+    assert.equal(atlasSubmitted.images.length, 2);
+    assert.match(atlasSubmitted.images[0], /^data:image\/png;base64,/);
     assert.deepEqual(await readFile(path.join(cwd, "edited.png")), PNG);
   } finally {
     await rm(cwd, { recursive: true, force: true });
