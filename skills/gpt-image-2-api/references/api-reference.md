@@ -4,13 +4,13 @@
 
 | Route | Provider | Model | Use |
 |---|---|---|---|
-| Standard | aifast.site | `gpt-image-2` | Generation and ordinary edits |
-| HD | AtlasCloud | `openai/gpt-image-2/edit` | High-quality reference edits |
+| Standard | aifast.site | `gpt-image-2` | Generation and ordinary single-reference edits |
+| VIP | aifast.site | `gpt-image-2-vip` | Primary high-resolution, multi-reference, quality-controlled route |
+| Atlas fallback | AtlasCloud | `openai/gpt-image-2/edit` | Backup for VIP edit failures and explicit `--profile atlas` |
 
-The former `gpt-image-2-vip` route is disabled. `--profile vip` is accepted only as an alias for
-the AtlasCloud `hd` profile.
+`--profile hd` maps to `vip` for compatibility with the previous AtlasCloud-only version.
 
-## Standard Route
+## aifast Standard/VIP Route
 
 - Generate: `POST https://aifast.site/v1/images/generations`
 - Edit: `POST https://aifast.site/v1/images/edits`
@@ -18,7 +18,29 @@ the AtlasCloud `hd` profile.
 - Generate body: JSON
 - Edit body: multipart form
 
-## AtlasCloud HD Route
+Models:
+
+| Model | Output tier | Quality |
+|---|---|---|
+| `gpt-image-2` | Up to 1K | omit |
+| `gpt-image-2-vip` | 1K/2K/4K presets | `auto`, `low`, `medium`, `high` |
+
+VIP preset tokens:
+
+| Ratio | 2K | 4K |
+|---|---|---|
+| 1:1 | `2048x2048` | `2880x2880` |
+| 16:9 | `2560x1440` | `3840x2160` |
+| 9:16 | `1440x2560` | `2160x3840` |
+| 4:3 | `2304x1728` | `3264x2448` |
+| 3:4 | `1728x2304` | `2448x3264` |
+| 3:2 | `2496x1664` | `3504x2336` |
+| 2:3 | `1664x2496` | `2336x3504` |
+| 5:4 | `2240x1792` | `3200x2560` |
+| 4:5 | `1792x2240` | `2560x3200` |
+| 21:9 | `3024x1296` | `3696x1584` |
+
+## AtlasCloud Fallback Route
 
 Submit:
 
@@ -28,22 +50,6 @@ Authorization: Bearer <ATLASCLOUD_API_KEY>
 Content-Type: application/json
 ```
 
-Payload:
-
-```json
-{
-  "model": "openai/gpt-image-2/edit",
-  "enable_base64_output": false,
-  "enable_sync_mode": false,
-  "images": ["https://example.com/reference.jpg"],
-  "output_format": "png",
-  "prompt": "Edit instruction",
-  "quality": "high",
-  "size": "1536x1024",
-  "moderation": "low"
-}
-```
-
 Poll:
 
 ```http
@@ -51,28 +57,45 @@ GET https://api.atlascloud.ai/api/v1/model/result/<request-id>
 Authorization: Bearer <ATLASCLOUD_API_KEY>
 ```
 
-The OpenAPI Schema returns prediction fields at the response root. The scripts also accept a
-`data` wrapper for compatibility with the earlier code example.
+The scripts also accept a `data` wrapper for compatibility with older AtlasCloud examples. Continue
+while status is `created` or `processing`. On `completed`, download every URL in `outputs`. On
+`failed`, surface the returned error. Preserve `has_nsfw_contents` in JSON output.
 
-Continue while status is `created` or `processing`. On `completed`, download every URL in
-`outputs`. On `failed`, surface the returned error. Preserve `has_nsfw_contents` in JSON output.
+AtlasCloud accepts 1 to 10 public reference URLs. Local PNG, JPEG, and WebP files are encoded as data
+URLs before submission.
 
-The scripts accept 1 to 10 public reference URLs. Local PNG, JPEG, and WebP files are encoded as
-data URLs for the Atlas request.
+AtlasCloud size enum: `1024x1024`, `1024x1536`, `1536x1024`, `2048x2048`, `2048x1152`,
+`3840x2160`, `2160x3840`.
 
-## HD Parameters
+When VIP falls back to AtlasCloud, unsupported VIP sizes are mapped conservatively:
 
-- Model: always `openai/gpt-image-2/edit`
-- Quality: `low`, `medium`, or `high`
-- Output format: `png` or `jpeg`, inferred from `--output`
-- Default size: `2048x2048`
-- Schema size enum: `1024x1024`, `1024x1536`, `1536x1024`, `2048x2048`, `2048x1152`,
-  `3840x2160`, `2160x3840`
+- square -> `2048x2048`
+- landscape -> `2048x1152`
+- tall portrait -> `2160x3840`
+- other portrait -> `1024x1536`
 
-The Schema description says arbitrary GPT Image 2 resolutions may be accepted when both dimensions
-are divisible by 16, the ratio is between 1:3 and 3:1, and the maximum is `3840x2160`. However, the
-same Schema declares a strict 7-value enum. The scripts follow the enum to avoid paid invalid
-requests. Resolutions above `2560x1440` are experimental.
+## Fallback Rules
+
+- VIP edit failures fall back to AtlasCloud when `ATLASCLOUD_API_KEY` is configured.
+- HTTP 400/401 from VIP do not fall back, because they usually mean invalid parameters, policy block,
+  or invalid credentials.
+- VIP generation does not fall back because AtlasCloud uses an edit-only model.
+- Set `GPT_IMAGE_ATLAS_FALLBACK=false` to disable automatic fallback.
+
+## Timeout Behavior
+
+- aifast standard/VIP image requests default to no local client timeout. The API is synchronous and
+  long-running high-resolution jobs may take more than five minutes.
+- Set `OPENAI_IMAGE_TIMEOUT_MS` to a positive integer only when the caller needs its own abort limit.
+- AtlasCloud fallback remains async and uses `ATLASCLOUD_POLL_TIMEOUT_MS` for polling.
+
+## Response Format
+
+- Standard generation still requests `b64_json` for compatibility.
+- VIP generation omits `response_format` so the API returns an image URL. This avoids slow
+  high-resolution Base64 response conversion; dashboard generation time and client wall time should
+  then stay close.
+- The scripts can save both `data[].url` and `data[].b64_json`.
 
 ## Configuration
 
@@ -87,6 +110,11 @@ ATLASCLOUD_POLL_TIMEOUT_MS=300000
 
 GPT_IMAGE_PROFILE=auto
 GPT_IMAGE_STANDARD_SIZE=1024x1024
-GPT_IMAGE_HD_SIZE=2048x2048
-GPT_IMAGE_HD_QUALITY=high
+GPT_IMAGE_VIP_SIZE=2048x2048
+GPT_IMAGE_VIP_QUALITY=high
+GPT_IMAGE_ATLAS_FALLBACK=true
+GPT_IMAGE_ATLAS_SIZE=2048x2048
+GPT_IMAGE_ATLAS_QUALITY=high
+OPENAI_IMAGE_TIMEOUT_MS=0
+OPENAI_IMAGE_MAX_RETRIES=2
 ```

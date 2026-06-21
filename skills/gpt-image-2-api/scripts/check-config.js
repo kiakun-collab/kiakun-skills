@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 import process from "node:process";
 import {
+  DEFAULT_ATLAS_QUALITY,
+  DEFAULT_ATLAS_SIZE,
+  DEFAULT_ATLAS_POLL_TIMEOUT_MS,
   DEFAULT_STANDARD_SIZE,
-  DEFAULT_HD_QUALITY,
-  DEFAULT_HD_SIZE,
-  HD_MODEL,
+  DEFAULT_TIMEOUT_MS,
+  DEFAULT_VIP_QUALITY,
+  DEFAULT_VIP_SIZE,
+  ATLAS_MODEL,
   STANDARD_MODEL,
+  VIP_MODEL,
   buildAtlasBaseUrl,
   buildBaseUrl,
   loadAmbientEnv,
@@ -26,18 +31,32 @@ const result = {
     size: process.env.GPT_IMAGE_STANDARD_SIZE || DEFAULT_STANDARD_SIZE,
     quality: null,
   },
-  hd: {
-    model: HD_MODEL,
-    size: process.env.GPT_IMAGE_HD_SIZE || process.env.GPT_IMAGE_VIP_SIZE || DEFAULT_HD_SIZE,
+  vip: {
+    model: VIP_MODEL,
+    size: process.env.GPT_IMAGE_VIP_SIZE || process.env.GPT_IMAGE_HD_SIZE || DEFAULT_VIP_SIZE,
     quality:
-      process.env.GPT_IMAGE_HD_QUALITY ||
       process.env.GPT_IMAGE_VIP_QUALITY ||
-      DEFAULT_HD_QUALITY,
+      process.env.GPT_IMAGE_HD_QUALITY ||
+      DEFAULT_VIP_QUALITY,
   },
-  timeoutMs: Number(process.env.OPENAI_IMAGE_TIMEOUT_MS || 300000),
+  atlasFallback: {
+    model: ATLAS_MODEL,
+    enabled: (process.env.GPT_IMAGE_ATLAS_FALLBACK || "true").toLowerCase(),
+    size:
+      process.env.GPT_IMAGE_ATLAS_SIZE ||
+      process.env.GPT_IMAGE_HD_SIZE ||
+      DEFAULT_ATLAS_SIZE,
+    quality:
+      process.env.GPT_IMAGE_ATLAS_QUALITY ||
+      process.env.GPT_IMAGE_HD_QUALITY ||
+      DEFAULT_ATLAS_QUALITY,
+  },
+  timeoutMs: Number(process.env.OPENAI_IMAGE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS),
   maxRetries: Number(process.env.OPENAI_IMAGE_MAX_RETRIES || 2),
   atlasPollIntervalMs: Number(process.env.ATLASCLOUD_POLL_INTERVAL_MS || 2000),
-  atlasPollTimeoutMs: Number(process.env.ATLASCLOUD_POLL_TIMEOUT_MS || 300000),
+  atlasPollTimeoutMs: Number(
+    process.env.ATLASCLOUD_POLL_TIMEOUT_MS || DEFAULT_ATLAS_POLL_TIMEOUT_MS,
+  ),
 };
 
 if (process.argv.includes("--json")) printJson(result);
@@ -49,8 +68,11 @@ else {
   console.log(`atlasBaseUrl   : ${result.atlasBaseUrl}`);
   console.log(`defaultProfile : ${result.defaultProfile}`);
   console.log(`standard       : ${result.standard.model} / ${result.standard.size}`);
-  console.log(`hd             : ${result.hd.model} / ${result.hd.size} / ${result.hd.quality}`);
-  console.log(`timeoutMs      : ${result.timeoutMs}`);
+  console.log(`vip            : ${result.vip.model} / ${result.vip.size} / ${result.vip.quality}`);
+  console.log(
+    `atlasFallback  : ${result.atlasFallback.model} / ${result.atlasFallback.size} / ${result.atlasFallback.quality} / ${result.atlasFallback.enabled}`,
+  );
+  console.log(`timeoutMs      : ${result.timeoutMs || "none"}`);
   console.log(`maxRetries     : ${result.maxRetries}`);
   console.log(`atlasPollMs    : ${result.atlasPollIntervalMs}`);
   console.log(`atlasTimeoutMs : ${result.atlasPollTimeoutMs}`);
