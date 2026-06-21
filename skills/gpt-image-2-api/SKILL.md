@@ -29,6 +29,26 @@ node scripts/check-config.js
 It reports whether required keys are present, which models and endpoints are configured, local
 timeout behavior, and whether AtlasCloud fallback is available.
 
+## Agent Setup
+
+Use this checklist when configuring the skill for another agent runtime:
+
+1. Copy this `gpt-image-2-api` folder into the runtime's skills directory.
+2. Run commands from inside the copied skill directory.
+3. Provide Node.js 18+ and keep secrets outside Git.
+4. Put gateway settings in one of the auto-loaded files: local `.env`, local `.gateway.env`, or
+   user-level `~/.gateway.env`.
+5. Require `OPENAI_API_KEY` for standard/VIP. Add `ATLASCLOUD_API_KEY` only when edit fallback or
+   forced `--profile atlas` is needed.
+6. Keep `OPENAI_IMAGE_TIMEOUT_MS=0` unless the caller intentionally wants a local abort limit.
+7. Run `node scripts/check-config.js` and confirm `ready: true`, `hasApiKey: true`, and
+   `timeoutMs: none`.
+8. Run a no-cost route preview before the first real job:
+
+```bash
+node scripts/generate.js --prompt "smoke test image" --dry-run --json
+```
+
 ## Common Flows
 
 Preview a high-detail edit before incurring cost:
@@ -106,7 +126,7 @@ this model. Disable edit fallback with `GPT_IMAGE_ATLAS_FALLBACK=false`.
 - Output: use `--output`, optional `--prompt-output`, and recommended `--json`.
 
 Read [references/api-reference.md](./references/api-reference.md) for provider payloads, supported
-sizes, fallback behavior, configuration, or API error diagnosis.
+sizes, fallback behavior, configuration templates, or API error diagnosis.
 
 Require Node.js 18+ and `OPENAI_API_KEY` for standard/VIP. Configure `ATLASCLOUD_API_KEY` to enable
 AtlasCloud fallback. Never store real keys in this skill or Git.

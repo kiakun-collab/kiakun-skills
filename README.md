@@ -65,6 +65,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 - Python >= 3.11
 - [uv](https://docs.astral.sh/uv/) 包管理器
 - Google Chrome 浏览器（小红书技能需要）
+- Node.js >= 18（`gpt-image-2-api` 技能需要）
 
 ### 安装
 
@@ -94,11 +95,30 @@ cp -r skills/ppt-rebuild-workflow ~/.claude/skills/
 cp -r skills/game-ui-asset-pipeline ~/.claude/skills/
 cp -r skills/gpt-image-2-api ~/.claude/skills/
 
+# Codex 示例
+cp -r skills/gpt-image-2-api ~/.codex/skills/
+
 # OpenClaw 示例
 cp -r skills/xiaohongshu <openclaw-project>/skills/
 ```
 
 > Agent 会自动识别每个 skill 目录下的 `SKILL.md` 并加载对应能力。
+
+### gpt-image-2-api 快速配置
+
+这个技能不依赖仓库的 Python 环境，复制 skill 后让 Agent 进入对应目录运行 Node 脚本即可。
+把真实密钥放在本机配置文件中，不要提交到仓库：
+
+```bash
+cd <agent-skills-dir>/gpt-image-2-api
+cp .env.example .gateway.env
+# 填写 OPENAI_API_KEY；只有需要 AtlasCloud 备用编辑通道时才填写 ATLASCLOUD_API_KEY
+node scripts/check-config.js
+node scripts/generate.js --prompt "smoke test image" --dry-run --json
+```
+
+`check-config.js` 看到 `ready: true`、`hasApiKey: true`、`defaultProfile: auto`、`timeoutMs: none`
+即代表标准/VIP 主通道配置可用。
 
 ---
 
@@ -281,7 +301,7 @@ kiakun-skills/
 
 ### gpt-image-2-api（GPT Image 2 API）
 
-通过 OpenAI-compatible 图片接口生成或编辑图片。日常任务默认使用成本更低的 `gpt-image-2`；复杂信息图、高精度内容、多个参考图或受支持的 2K/4K 规格使用 `gpt-image-2-vip`。`size` 只能选择文档列出的规格或比例，不能指定任意精确分辨率。提供 `--dry-run` 路由预览、清晰的生成/编辑路径、参数校验、多图保存、超时与自动重试。
+通过 OpenAI-compatible 图片接口生成或编辑图片。日常任务默认使用成本更低的 `gpt-image-2`；复杂信息图、高精度内容、多个参考图或受支持的 2K/4K 规格使用 `gpt-image-2-vip`。VIP 编辑失败时可用 AtlasCloud 作为备用通道。提供 `--dry-run` 路由预览、`check-config.js` 配置检查、清晰的生成/编辑路径、参数校验、多图保存、超时与自动重试。
 
 **典型用法：**
 > "生成一张日常社交配图；如果是复杂信息图或 4K 海报，再自动使用 VIP。"
