@@ -72,6 +72,38 @@ python scripts/audit_pptx_text_frames.py input.pptx --output text-frame-audit.js
 
 `graphicFrame` 及形状与图片之间的通用相互碰撞不纳入通用几何碰撞门禁。表格、图表、SmartArt、图片和形状可以有正常设计叠放；遮挡、穿过或挤压原生文字时，按文字可读性门禁处理。即使没有影响文字，对象的位置、尺度、裁切、前后层级或构图明显偏离参考图时，仍可能构成视觉还原度偏差，按 `visual-fidelity-qa.md` 处理。
 
+## extract_reference_measurements.py
+
+```powershell
+python scripts/extract_reference_measurements.py reference-dir --output reference-measurements.json --annotated-dir measurements
+```
+
+可选参数：
+
+- `--target-width`、`--target-height`：输出坐标系，默认 `1280 x 720`。
+- `--min-component-area`：保留边缘连通组件的最小像素数，默认 `8`。
+- `--max-candidates`：每页每类候选最多数量，默认 `40`。
+- `--auto-anchor-limit`：每页自动宏观锚点最大数量，默认 `12`。
+
+输出字段：
+
+- `settings`
+- `pages[].image`
+- `pages[].originalSize`
+- `pages[].coordinateSystem`
+- `pages[].scale`
+- `pages[].coordinateTransform`：包含 `sourcePxToCanvas`、`canvasToSourcePx` 和 `fitMode`，用于临时校准层与最终 layout-spec 的坐标锁定。
+- `pages[].autoAnchors`：包含 `id`、`kind`、`bbox`、`confidence`、`sourceCandidateIds` 和 `validation`，用于自动锚点叠加验证。
+- `settings.autoAnchorLimit`
+- `pages[].dominantColors`
+- `pages[].textLineCandidates`
+- `pages[].horizontalLineCandidates`
+- `pages[].verticalLineCandidates`
+- `pages[].regionCandidates`
+- `pages[].annotatedImage`
+
+该脚本只生成测量候选、坐标变换和自动宏观锚点，不是最终视觉判断。agent 必须用 rendered calibration overlay 验证 `coordinateTransform` 和 `autoAnchors`，再写入 `visual-extraction`。脚本候选不得直接等同于最终形状清单、OCR 结果或字体参数。
+
 ## make_reference_render_comparison.py
 
 ```powershell

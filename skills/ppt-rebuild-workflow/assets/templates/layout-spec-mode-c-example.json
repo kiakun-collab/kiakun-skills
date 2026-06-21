@@ -5,6 +5,8 @@
     "width": 1280,
     "height": 720
   },
+  "sourceExtractionFile": "page-01-visual-extraction.json",
+  "typographyCalibrationFile": "page-01-typography-calibration.json",
   "objects": [
     {
       "name": "background-environment",
@@ -17,7 +19,10 @@
       "z": 1,
       "fit": "cover",
       "editable": true,
-      "source": "environment-only.png"
+      "source": "environment-only.png",
+      "sourceExtractionId": "background-environment",
+      "measurementEvidence": "visual-extraction.images/background-environment",
+      "coordinateCalibrationId": "page-01-auto-calibration"
     },
     {
       "name": "person-primary",
@@ -31,7 +36,10 @@
       "fit": "contain",
       "editable": true,
       "source": "person-primary-transparent.png",
-      "alphaRequired": true
+      "alphaRequired": true,
+      "sourceExtractionId": "person-primary",
+      "measurementEvidence": "visual-extraction.images/person-primary",
+      "coordinateCalibrationId": "page-01-auto-calibration"
     },
     {
       "name": "content-image-01",
@@ -45,7 +53,10 @@
       "fit": "cover",
       "editable": true,
       "source": "content-image-01.png",
-      "replaceable": true
+      "replaceable": true,
+      "sourceExtractionId": "content-image-01",
+      "measurementEvidence": "visual-extraction.images/content-image-01",
+      "coordinateCalibrationId": "page-01-auto-calibration"
     },
     {
       "name": "title-main",
@@ -66,7 +77,11 @@
         "lineSpacingPercent": 108,
         "align": "left",
         "verticalAlign": "middle"
-      }
+      },
+      "sourceExtractionId": "title-main",
+      "typographyCalibrationId": "title-main",
+      "measurementEvidence": "visual-extraction.textBlocks/title-main",
+      "coordinateCalibrationId": "page-01-auto-calibration"
     },
     {
       "name": "tag-01",
@@ -88,11 +103,20 @@
         "fontSizePt": 12,
         "fontWeight": 700,
         "color": "#FF5B57"
-      }
+      },
+      "sourceExtractionId": "tag-01",
+      "typographyCalibrationId": "tag-01",
+      "measurementEvidence": "visual-extraction.shapes/tag-01 + visual-extraction.textBlocks/tag-01",
+      "confidence": 0.85,
+      "coordinateCalibrationId": "page-01-auto-calibration"
     }
   ],
   "notes": [
     "Mode C 中环境、人物、内容图、文字和结构必须独立。",
-    "每张内容图使用独立且可替换的图片对象。"
-  ]
+    "每张内容图使用独立且可替换的图片对象。",
+    "layout-spec 中所有对象必须记录 coordinateCalibrationId；临时参考图只允许存在于校准产物，不能进入最终 deck。"
+  ],
+  "coordinateCalibrationFile": "page-01-coordinate-calibration.json",
+  "coordinateCalibrationId": "page-01-auto-calibration",
+  "acceptanceRenderer": "artifact-tool"
 }

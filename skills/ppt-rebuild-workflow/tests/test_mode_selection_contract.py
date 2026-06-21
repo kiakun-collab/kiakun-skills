@@ -203,6 +203,33 @@ class ModeSelectionContractTests(unittest.TestCase):
         self.assertIn("默认坐标系为 1280 x 720", skill)
         self.assertIn("非 16:9", skill)
 
+    def test_measurement_precedes_layout_and_is_enforced_across_workflows(self) -> None:
+        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        full = (SKILL_ROOT / "references" / "full-layered-workflow.md").read_text(
+            encoding="utf-8"
+        )
+        checklist = (
+            SKILL_ROOT / "assets" / "templates" / "level-2-delivery-checklist.md"
+        ).read_text(encoding="utf-8")
+        page_task = (
+            SKILL_ROOT / "assets" / "templates" / "page-task-template.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertLess(
+            full.index("extract_reference_measurements.py"),
+            full.index("建立 `layout-spec.json`"),
+        )
+        self.assertIn("`x/y/w/h` 已从参考图抽取", checklist)
+        self.assertIn("测量 JSON、标注图", checklist)
+        self.assertIn("先写 `layout-spec`", skill)
+        self.assertIn("候选框当作最终形状清单", skill)
+        self.assertIn("visual-extraction.shapes[]", skill)
+        self.assertLess(
+            page_task.index("测量参考图"),
+            page_task.index("layout-spec"),
+        )
+        self.assertIn("保存测量 JSON 和标注图", page_task)
+
     def test_complex_visual_transitions_have_explicit_asset_and_qa_contracts(
         self,
     ) -> None:

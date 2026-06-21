@@ -34,7 +34,7 @@ description: |
 7. **图片型 PPT 可编辑复刻**（"图片型 PPT / PPT 截图 / 复刻为可编辑 PPTX / 字体 / 占位图 / 背景格式 / 导出后检查"）
    → 执行 `image-ppt-to-editable-pptx` 技能。
 
-8. **PPT 重构工作流**（"幻灯片截图 / image-only PPTX / AI 参考页 / 用户修改稿 / Mode A-E / 可编辑边界 / 视觉还原 QA"）
+8. **PPT 重构工作流**（"幻灯片截图 / image-only PPTX / AI 参考页 / 用户修改稿 / Mode A-E / 自动坐标校准 / 视觉抽取 / 富文本 / 可编辑边界 / 视觉还原 QA"）
    → 执行 `ppt-rebuild-workflow` 技能。
 
 9. **游戏 UI 资产流水线**（"游戏 UI / Godot UI / icon sheet / HUD glyph / 九宫格面板 / UI 皮肤 / 切片导入"）
@@ -54,7 +54,7 @@ skills/
 ├── game-ui-asset-pipeline/   → 游戏 UI 资产生成、切片、验证与 Godot 导入
 ├── gpt-image-2-api/          → GPT Image 2 成本感知 API 生图与编辑
 ├── image-ppt-to-editable-pptx/ → 图片型 PPT 可编辑复刻
-├── ppt-rebuild-workflow/     → PPT 重构模式、可编辑边界与分级 QA
+├── ppt-rebuild-workflow/     → PPT 重构模式、自动坐标校准、视觉抽取、可编辑边界与分级 QA
 └── xiaohongshu/              → 小红书自动化（含 xhs-auth, xhs-explore, xhs-interact, xhs-publish, xhs-content-ops 等）
 ```
 
@@ -95,7 +95,7 @@ skills/
 
 ### ppt-rebuild-workflow
 - 触发：用户提供幻灯片截图、图片型 PPTX、AI 参考页或用户修改稿，要求选择适当重构模式并交付可编辑 PPTX
-- 能力：Mode A-E 路由 → 文案恢复 → 资产与可编辑边界 → 复杂视觉过渡策略 → 结构审计 → 文字可读性与参考图还原度双门禁
+- 能力：Mode A-E 路由 → 语义验收 → 自动坐标校准 → 视觉抽取 → 字体校准 → 富文本 runs → 资产与可编辑边界 → 复杂视觉过渡策略 → 结构审计 → 文字可读性与参考图还原度双门禁
 - 入口文件：`skills/ppt-rebuild-workflow/SKILL.md`
 
 ### game-ui-asset-pipeline

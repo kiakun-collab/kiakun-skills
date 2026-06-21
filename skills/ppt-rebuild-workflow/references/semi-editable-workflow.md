@@ -6,6 +6,8 @@
 
 - 参考图或无字底图目录。
 - `target_font`。
+- `autonomy_profile`：默认 `auto-calibrated`；用户要求人工逐对象确认时才使用 `human-assisted`。
+- `acceptance_renderer`：用于字体探针和最终视觉门禁的渲染后端。
 - 页序。
 - 输出文件名。
 - 允许烘焙的对象：背景环境 + 主视觉。
@@ -15,22 +17,26 @@
 
 1. 确认 Mode B，不把完整参考图直接嵌入最终稿。
 2. 对每页转写文字：栏目名、主标题、副标题、标签、正文、页码。
-3. 参考 `assets/templates/layout-spec-mode-b-example.json` 建立并落盘逐页 `layout-spec` 文件：所有主要元素的 `x/y/w/h`、字号、颜色、行距、间距。
-4. 建立逐页 `style-spec`：标题层级、标签样式、正文框样式、线条和边框样式。
-5. 识别渐隐、光晕、雾气和图片边缘融合区，按 [visual-transition-strategy.md](visual-transition-strategy.md) 填写 `visualTransitions`。
-6. 如果需要生成无字底图，图像生成和 PPT 结构搭建并行推进。
-7. 插入无字底图作为底层图片；复杂过渡在图片阶段完成，简单规则渐变才使用原生形状。
-8. 使用 PPT 文本框和原生形状重建文字与结构。
-9. 导出 PPTX 并渲染 PNG。
-10. 运行文本框、细长形状与包内结构审计。
-11. 对每页最终 PNG 做图像识别视觉重叠审计。
-12. 对每页参考图和最终渲染图做视觉还原度审计，检查版式、构图、层级、色彩、字体观感、间距和边缘融合。
-13. 修复标记问题后重新导出、重新渲染、重新审计。
-14. 做 Level 2 QA，至少修复一轮明显偏差。
+3. 按 [autonomous-calibration.md](autonomous-calibration.md) 锁定坐标：运行测量脚本，生成带自动锚点的标注图和临时校准层。该层只用于验证，不进入最终 PPTX。
+4. 按 [visual-extraction-pass.md](visual-extraction-pass.md) 建立视觉抽取：自动修正候选文字、形状、图片和间距 bbox，并为低置信复杂对象选择 `baked-asset` 或 `mode-b-fallback`。
+5. 为每页建立 `typography-calibration`：用同一渲染后端比较 2-4 个字号、行距、文本框宽高、内边距和字体候选，不只保留一个猜测值。
+6. 参考 `assets/templates/layout-spec-mode-b-example.json` 建立并落盘逐页 `layout-spec` 文件：所有主要元素的 `x/y/w/h`、字号、颜色、行距、间距，并写入 `sourceExtractionId` 与 `coordinateCalibrationId`。
+7. 建立逐页 `style-spec`：标题层级、标签样式、正文框样式、线条和边框样式，并记录参考 bbox 与渲染校准证据。
+8. 识别渐隐、光晕、雾气和图片边缘融合区，按 [visual-transition-strategy.md](visual-transition-strategy.md) 填写 `visualTransitions`。
+9. 如果需要生成无字底图，图像生成和 PPT 结构搭建并行推进。
+10. 插入无字底图作为底层图片；复杂过渡在图片阶段完成，简单规则渐变才使用原生形状。
+11. 使用 PPT 文本框和原生形状重建文字与结构。
+12. 导出 PPTX 并由 `acceptance_renderer` 渲染 PNG。
+13. 运行文本框、细长形状与包内结构审计。
+14. 对每页最终 PNG 做图像识别视觉重叠审计和分区还原度审计。
+15. 自动修复标记问题并重新导出、重新渲染、重新审计，最多三轮；仍失败时使用 Mode B 可编辑边界内的最小烘焙回退。
+16. 做 Level 2 QA；发生自动回退或未达指标时不得标记为完整通过。
 
 ## Level 2 硬门槛
 
 - 必须生成参考图与渲染图对照图。
+- 必须生成逐页 `visual-extraction`、测量标注图和 `typography-calibration`；低置信对象必须闭环。
+- 必须生成 `coordinateTransform`、6-12 个自动宏观锚点和临时校准层；`coordinateCalibration.status = PASS`。
 - 必须为每页保存可检查的 `layout-spec` 文件，不能只把参数留在构建脚本中。
 - `textFrameIntersections = 0`。
 - `visionAuditStatus = PASS` 且 `visualOverlapCount = 0`。
@@ -40,6 +46,7 @@
 - 装饰线、页码线、边框等细长形状不能侵入文字字形；几何候选必须逐项消除或解释。
 - 普通分隔页每页长正文文本框候选默认恰好 `1` 个；没有正文或特殊多栏页面必须在 QA 中说明例外。
 - 必须按页统计形状角色：标签、正文框、边框、页码线、装饰线、遮罩、图片。
+- 字体探针必须在 `acceptance_renderer` 中完成；主文字样式没有溢出、换行符合参考，且最终 bbox 误差有记录。
 
 ## 导出和预览降级
 
@@ -64,9 +71,10 @@
 
 - 连续正文默认一个文本框，使用段落换行。
 - 同一标签文字为一个文本框或形状内文本。
-- 主标题因大字、换行、多色强调可拆多个文本框。
+- 主标题、底部口号和强调句若属于同一阅读流，默认一个文本框，颜色、字号、粗细差异用富文本 runs 表达。
+- 主标题只有在独立对齐、独立换行、独立旋转、独立动画、遮罩或非连续阅读对象时才拆多个文本框，并在 `text-box-policy` 解释。
 - 不要把三行普通正文拆成三个文本框。
-- QA 报告必须包含 `text-box-policy`：列出正文、标题、标签、页码分别如何拆分。
+- QA 报告必须包含 `text-box-policy`：列出正文、标题、标签、页码分别如何合并、使用富文本 runs 或拆分。
 
 ## 形状角色规则
 
@@ -83,6 +91,7 @@
 - 标签高度、宽度、内边距和单行显示。
 - 正文框位置、尺寸、圆角、透明度。
 - 正文字号、行距、颜色和段落间距。
+- 文字块参考 bbox、字形 bbox、内边距和渲染后文本块高度是否与校准记录一致。
 - 页码和底部线条位置。
 - 左侧阅读区和主视觉边缘是否出现硬边、矩形接缝、色带或多余蒙层。
 - 渐变方向、过渡宽度和纹理连续性是否达到参考图目标。

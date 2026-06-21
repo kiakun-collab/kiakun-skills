@@ -1,8 +1,19 @@
 {
   "renderDirectory": "",
+  "acceptanceRenderer": "",
   "reviewedAtFullResolution": true,
   "visionAuditStatus": "",
   "visualOverlapCount": null,
+  "autoIteration": 0,
+  "allowedVisualOverlaps": [
+    {
+      "page": null,
+      "objects": [],
+      "reason": "",
+      "affectsTextReadability": false,
+      "status": ""
+    }
+  ],
   "needsHumanReview": false,
   "conflictingAuditRounds": [],
   "humanReviewEvidence": "",

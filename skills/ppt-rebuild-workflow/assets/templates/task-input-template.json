@@ -1,15 +1,27 @@
 {
   "taskMode": "",
+  "autonomyProfile": "auto-calibrated",
   "targetFont": "",
+  "fontCandidateSet": [],
+  "acceptanceRenderer": "",
   "sourcePptx": "",
   "referenceImages": [],
   "slideOrder": [],
   "editableBoundary": {
     "mayBakeIntoImage": [],
     "mustRemainEditable": [],
-    "mustRemainIndependentImages": []
+    "mustRemainIndependentImages": [],
+    "autoFallbackAllowed": true
   },
   "assetStrategy": "",
+  "visualExtraction": {
+    "measurementJson": "",
+    "annotatedDir": "",
+    "perPageExtractionDir": "",
+    "typographyCalibrationDir": "",
+    "coordinateCalibrationDir": "",
+    "temporaryCalibrationDir": ""
+  },
   "qaLevel": "",
   "output": {
     "directory": "",
@@ -17,5 +29,9 @@
   },
   "overwritePolicy": "forbid",
   "permissionPolicy": "follow-current-thread-policy",
-  "notes": []
+  "notes": [
+    "targetFont 为空时必须在 acceptanceRenderer 中比较 fontCandidateSet，不阻塞等待人工选字。",
+    "temporaryCalibrationDir 只能保存临时校准图或校准 PPT，不得作为最终 deck 的页面来源。",
+    "overwritePolicy 默认 forbid；只有用户明确要求覆盖、已有备份或任务属于受控增量修改时，才可改为 allow，并在报告中记录原因。"
+  ]
 }

@@ -8,6 +8,8 @@
 - 不默认使用 `python-pptx`、直接 OOXML 或 LibreOffice 修改最终 PPTX。
 - 本 Skill 的三个脚本只读 PPTX 包，不替代构建、导出或渲染运行时。
 - 渲染优先使用 Presentations Skill 提供的 artifact-tool helper。
+- `acceptance_renderer` 默认记录为 artifact-tool render；如果用户最终要求 PowerPoint desktop fidelity，必须记录 renderer delta，不能把 artifact-tool 渲染视为 PowerPoint 原生完全一致。
+- Mode B/C 可用 artifact-tool 生成临时参考校准 deck/page；最终交付 deck 必须排除整页参考校准层。
 - QA 临时产物在验证期间保留；最终保留、清理和交付遵循用户要求及 Presentations Skill。
 
 ## 参考图重构的优先契约

@@ -2,6 +2,17 @@
   "referenceDirectory": "",
   "renderDirectory": "",
   "pairingManifest": "",
+  "acceptanceRenderer": "",
+  "coordinateCalibrationByPage": [
+    {
+      "page": null,
+      "coordinateCalibrationId": "",
+      "status": "",
+      "maxAnchorOffsetPx": null,
+      "tolerancePx": null,
+      "calibrationOverlay": ""
+    }
+  ],
   "visualFidelityStatus": "",
   "majorFidelityDeviationCount": null,
   "minorFidelityDeviationCount": null,
@@ -9,12 +20,30 @@
   "visibleAssetSeamCount": null,
   "transitionFlaggedPages": [],
   "visualTransitionByPage": [],
+  "autoIterationCount": 0,
+  "autoFallbacks": [],
+  "autoFidelityBlocked": false,
   "needsHumanReview": false,
   "humanReviewEvidence": "",
   "visualFidelityByPage": [
     {
       "page": null,
       "status": "",
+      "regionMetrics": [
+        {
+          "region": "",
+          "kind": "",
+          "bboxDeltaPx": {
+            "x": null,
+            "y": null,
+            "w": null,
+            "h": null
+          },
+          "baselineDeltaPx": null,
+          "tolerancePx": null,
+          "status": ""
+        }
+      ],
       "deviations": [
         {
           "dimension": "",

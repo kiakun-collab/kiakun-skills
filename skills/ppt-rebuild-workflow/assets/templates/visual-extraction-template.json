@@ -1,0 +1,127 @@
+{
+  "page": "XX",
+  "sourceImage": "",
+  "coordinateSystem": {
+    "width": 1280,
+    "height": 720
+  },
+  "coordinateCalibration": {
+    "id": "page-XX-coordinate-lock",
+    "sourcePxToCanvas": {
+      "scaleX": null,
+      "scaleY": null,
+      "offsetX": 0,
+      "offsetY": 0,
+      "fitMode": ""
+    },
+    "autoAnchors": [],
+    "calibrationOverlay": "",
+    "maxAnchorOffsetPx": null,
+    "tolerancePx": null,
+    "status": "pending"
+  },
+  "measurementArtifacts": {
+    "referenceMeasurementsJson": "",
+    "annotatedImage": ""
+  },
+  "semanticSummary": "",
+  "readingOrder": [],
+  "textBlocks": [
+    {
+      "id": "title-main",
+      "role": "title",
+      "text": "",
+      "textSource": "",
+      "textFlowPolicy": "single-rich-text-frame",
+      "textRuns": [
+        {
+          "text": "",
+          "style": {
+            "fontSizePt": null,
+            "fontWeight": null,
+            "color": ""
+          }
+        }
+      ],
+      "bbox": { "x": 0, "y": 0, "w": 0, "h": 0 },
+      "glyphBBox": { "x": 0, "y": 0, "w": 0, "h": 0 },
+      "lineCount": 1,
+      "lineBBoxes": [],
+      "fontCandidateSet": [],
+      "estimatedFontSizePt": null,
+      "calibratedFontSizePt": null,
+      "fontWeight": null,
+      "lineSpacingPercent": null,
+      "color": "",
+      "align": "",
+      "verticalAlign": "",
+      "textBoxPaddingPx": { "left": null, "top": null, "right": null, "bottom": null },
+      "renderMetrics": {
+        "renderer": "",
+        "constructionUnit": "",
+        "renderedBBox": null,
+        "glyphDeltaPx": null,
+        "baselineDeltaPx": null,
+        "lineCountMatches": null,
+        "clippingDetected": null
+      },
+      "confidence": 0,
+      "evidence": "",
+      "needsHumanReview": false
+    }
+  ],
+  "shapes": [
+    {
+      "id": "body-panel-main",
+      "role": "body-panel",
+      "visualType": "roundRect",
+      "pptPrimitive": "roundRect",
+      "bbox": { "x": 0, "y": 0, "w": 0, "h": 0 },
+      "cornerRadiusPx": null,
+      "fill": "",
+      "stroke": "",
+      "strokeWidthPx": null,
+      "opacity": null,
+      "shadow": "",
+      "z": null,
+      "editableStrategy": "native-shape",
+      "overlapPolicy": "",
+      "fallbackStrategy": "baked-asset",
+      "confidence": 0,
+      "evidence": "",
+      "needsHumanReview": false
+    }
+  ],
+  "images": [
+    {
+      "id": "content-image-main",
+      "role": "content-image",
+      "bbox": { "x": 0, "y": 0, "w": 0, "h": 0 },
+      "crop": { "left": null, "top": null, "right": null, "bottom": null },
+      "editableStrategy": "",
+      "allowedOverlays": [],
+      "edgeIntegration": "",
+      "source": "",
+      "confidence": 0,
+      "needsHumanReview": false
+    }
+  ],
+  "spacing": [
+    {
+      "id": "title-to-subtitle",
+      "from": "title-main",
+      "to": "subtitle-main",
+      "kind": "vertical-gap",
+      "measuredPx": null,
+      "targetPx": null,
+      "evidence": ""
+    }
+  ],
+  "risks": [
+    { "objectId": "", "risk": "", "decision": "", "status": "open" }
+  ],
+  "notes": [
+    "删除不适用示例；所有进入 layout-spec 的对象必须保留 sourceExtractionId、coordinateCalibrationId 或来源说明。",
+    "低置信对象默认选择 baked-asset 或 mode-b-fallback；只有必须单独编辑且无稳定实现时才需要人工复核。"
+  ]
+}

@@ -1,6 +1,15 @@
 # Level 2 Delivery Checklist
 
 - [ ] `task-input.json` 已落盘，模式、字体、来源、可编辑边界、QA 等级和输出策略完整。
+- [ ] `autonomyProfile`、`acceptanceRenderer` 和自动字体候选策略已记录；未指定字体时没有阻塞等待用户。
+- [ ] 每页 `visual-extraction`、测量标注图和 `typography-calibration` 已落盘。
+- [ ] 每页 `coordinateTransform`、6-12 个自动宏观锚点、自动锚点标注图和临时校准层已落盘。
+- [ ] `coordinateCalibration.status = PASS`，最大锚点偏移不超过容差。
+- [ ] 临时校准层中的整页参考图未进入最终 PPTX。
+- [ ] 标题、标签、正文框、页码线和主要结构对象的 `x/y/w/h` 已从参考图抽取并逐页记录；每项有测量 JSON、标注图、自动锚点或校准叠加证据。
+- [ ] 每个最终可编辑文字、形状和内容图对象有 `sourceExtractionId`、`coordinateCalibrationId`、原 PPTX 对象或明确来源说明。
+- [ ] 标题、正文、标签、页码等主要文字样式已在 `acceptanceRenderer` 中完成 2-4 个候选渲染比较，并记录 bbox、baseline、wrap 和 overflow。
+- [ ] 低置信文字、形状、图片和间距对象已进入风险列表并闭环；复杂低置信对象已自动选择 `baked-asset` 或 Mode B fallback，不存在未解决的必须编辑冲突。
 - [ ] 每页 `layout-spec` 和 `style-spec` 已落盘。
 - [ ] 关键渐隐、光晕和图片边缘已写入 `visualTransitions`，复杂过渡没有被简化为窄矩形补缝。
 - [ ] PPTX 使用新文件名，未覆盖用户原文件。
@@ -10,6 +19,8 @@
 - [ ] `fullSlideImageRiskPages` 为空，或每个风险页已证明不是整页参考图。
 - [ ] `wholeReferenceImageEmbedded` 有自动风险证据和人工对照结论。
 - [ ] 连续正文默认一个文本框，例外已说明。
+- [ ] 同一句标题、口号或强调句中的多色/多字号片段已优先用单文本框富文本 runs；若拆分，已记录独立布局原因和视觉间距证据。
+- [ ] 富文本 runs 的颜色、字号、字重和描边已在最终 PNG 中复查，没有被统一文本样式覆盖。
 - [ ] 形状按角色命名，`unclassified` 数量为 0 或逐项解释。
 - [ ] `slideCount` 正确，`emptyMediaCount = 0`。
 - [ ] `textFrameIntersections = 0`。
@@ -23,6 +34,7 @@
 - [ ] 已逐页检查版式、构图、层级、色彩、字体观感、间距节奏和关键素材是否达到参考图目标。
 - [ ] `visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。
 - [ ] `visibleAssetSeamCount = 0`，没有明显矩形接缝、色带、纹理中断或错误渐变方向。
+- [ ] 自动返修不超过三轮；超过时已记录 `autoFidelityBlocked` 和最小自动回退，且未标记完整通过。
 - [ ] 所有轻微还原偏差已逐页记录；普通对象叠放若明显偏离参考图，已按还原度问题处理。
 - [ ] 若审计结论不稳定，已设置 `needsHumanReview` 并完成人工裁决。
 - [ ] 所有修复页已重新渲染并复审，没有复用旧预览。

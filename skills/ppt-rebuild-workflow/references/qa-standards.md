@@ -33,6 +33,12 @@
 - 普通分隔页每页长正文文本框候选默认恰好为 `1`；例外必须说明。
 - 运行 `scripts/make_reference_render_comparison.py` 或等价流程；页码映射、缺失页、重复页和多余页检查通过，并保留 pairing JSON。
 - 任务输入文件和每页 `layout-spec` 已落盘；关键渐隐、光晕和图片边缘已记录在 `visualTransitions`。
+- 每页 `visual-extraction`、测量标注图和 `typography-calibration` 已落盘；每个最终可编辑对象有 `sourceExtractionId`、`coordinateCalibrationId`、原 PPTX 对象或明确来源说明。
+- 每页 `coordinateTransform`、6-12 个自动宏观锚点、临时校准层和 `coordinateCalibration.status = PASS` 已落盘；最终 deck 不包含临时整页参考图。
+- 低置信文字、形状、图片和间距对象已进入风险列表并闭环；复杂低置信对象自动选择 `baked-asset` 或 Mode B fallback，不得把未解释对象静默写入最终 PPTX。
+- 标题、正文、标签和页码等主要文字样式已在 `acceptanceRenderer` 中完成 2-4 个候选渲染比较，并记录 bbox、baseline、wrap 和 overflow。
+- 同一语义行、口号或标题中的多色/多字号强调已优先实现为单文本框富文本 runs；如拆成多个文本框，必须有独立布局原因，并记录拆分后的视觉间距证据。
+- 富文本 runs 的颜色、字号、字重和描边在最终渲染 PNG 中保持区分；不能因合并文本框而退化为统一样式。
 - `assets/templates/level-2-delivery-checklist.md` 已逐项完成。
 
 ### Level 2 必须视觉门禁
@@ -45,10 +51,14 @@
 - 视觉检查整页优先；不得把多轮裁剪作为默认审计流程。
 - 整页放大只用于检查文字是否清晰、完整、被遮挡或裁切，不用于从 AI 伪字中恢复准确文案。
 - 渲染 PNG 中的文字没有裁切、越界、破坏性重叠或安全间距不足。
+- 同一句多样式文字在最终 PNG 中保持连续阅读节奏，没有因文本框不重叠规则产生异常空隙。
 - 形状与形状、图片与图片、图片与非文字形状之间的叠放不纳入通用碰撞门禁；只有影响文字可读性或违反明确分层规则时才判定失败。
+- 参考图中有意的 shape/image 覆盖已记录为 `overlapPolicy`、`allowedOverlays` 或 `allowedVisualOverlaps`；不影响文字可读性时不得计入 `visualOverlapCount`。
 - `visionAuditStatus = PASS` 且 `visualOverlapCount = 0`。
 - 按 [visual-fidelity-qa.md](visual-fidelity-qa.md) 逐页检查版式、构图、层级、色彩、字体观感、间距节奏和关键素材。
 - `visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。
+- 分区 `regionMetrics` 中关键对象的 bbox、baseline 和间距偏差必须落入门槛；未达标对象进入自动返修。
+- `autoIterationCount <= 3`、`autoFidelityBlocked = false`、未解决 required editability conflicts = 0。
 - 按 [visual-transition-strategy.md](visual-transition-strategy.md) 检查复杂过渡，`visibleAssetSeamCount = 0`；明显矩形接缝、色带、纹理中断或错误渐变方向按 `major` 处理。
 - 不要求像素级完全一致；所有 `minor` 偏差必须逐页记录，未经解释的明显偏差不能通过。
 - 普通形状或图片叠放即使不影响文字，只要其位置、层级、裁切或构图明显偏离参考图，仍属于还原度失败。
@@ -59,7 +69,6 @@
 
 ### Level 2 可选增强
 
-- 抽取或人工记录标题、标签、正文框、页码线的主要坐标。
 - 对形状数量偏多的页面补充角色分布图。
 - 当参考图与渲染图尺寸、裁切和对齐完全一致时，可生成绝对差异热力图筛选候选区域；热力图不得单独决定 PASS/FAIL。
 
@@ -76,6 +85,10 @@
 - `wholeReferenceImageEmbedded` 的状态、自动风险证据和人工对照结论证明未嵌入整页参考图。
 - `combinedBackgroundPersonPictureCount = 0`，或 asset-audit 记录不可拆分例外。
 - `contentPicturesAreIndependentObjects = true`。
+- `coordinateCalibration.status = PASS`，临时校准层已验证，最终 deck 未包含整页参考图。
+- `visualExtractionComplete = true`，每个分层对象有视觉抽取、资产审计、`coordinateCalibrationId` 或原 PPTX 来源。
+- `typographyCalibrationComplete = true`，主要文字样式有同一 `acceptanceRenderer` 下的渲染校准证据。
+- `autoIterationCount <= 3`，任何 `autoFallbacks` 和 `autoFidelityBlocked` 都已记录；存在阻断项时不得声明 Level 3 通过。
 - `forbiddenOverlayShapesDetected = 0`。
 - 背景、人物、内容图分层符合 asset-audit。
 - 完成 [level-3-delivery-checklist.md](../assets/templates/level-3-delivery-checklist.md)。
@@ -95,7 +108,7 @@ Level 3 每项门槛都必须记录 `automatedEvidence`、`manualEvidence` 和 `
 
 ## 最终报告格式
 
-报告输出路径、页数、字体槽位、未解析字体、媒体、对象角色、未知名称、图片覆盖风险、几何覆盖风险、渲染预览、任务输入、布局规格、视觉证据、QA 等级、修复项、剩余风险和降级事件。
+报告输出路径、页数、`autonomyProfile`、`acceptanceRenderer`、`fontCandidateSet`、`coordinateCalibration`、临时校准层路径、字体槽位、未解析字体、媒体、对象角色、未知名称、图片覆盖风险、几何覆盖风险、渲染预览、任务输入、视觉抽取、字号校准、布局规格、视觉证据、`autoIterationCount`、`autoFallbacks`、`autoFidelityBlocked`、QA 等级、修复项、剩余风险和降级事件。
 
 ## 导出失败处理
 

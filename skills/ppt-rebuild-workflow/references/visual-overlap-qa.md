@@ -30,6 +30,8 @@
 
 形状与形状、图片与图片、图片与非文字形状之间的叠放是常见设计手段，不纳入通用碰撞门禁。只有它们影响标题、正文、标签、页码或其他文字的辨识、完整性和阅读顺序时才记录为视觉重叠问题。
 
+有意的 shape/image 覆盖应在 `visual-extraction` 中写入 `overlapPolicy` 或 `allowedOverlays`，并在视觉重叠审计报告的 `allowedVisualOverlaps` 中说明。它们不增加 `visualOverlapCount`；但如果覆盖位置、层级、裁切或构图偏离参考图，应转入 `visual-fidelity-qa.md` 记录还原度偏差。
+
 ## 必查冲突
 
 - 装饰线、分隔线、页码线穿过标题、副标题、标签或正文。

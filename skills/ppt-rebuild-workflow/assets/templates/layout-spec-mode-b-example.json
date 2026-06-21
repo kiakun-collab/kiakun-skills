@@ -5,6 +5,8 @@
     "width": 1280,
     "height": 720
   },
+  "sourceExtractionFile": "page-01-visual-extraction.json",
+  "typographyCalibrationFile": "page-01-typography-calibration.json",
   "visualTransitions": [
     {
       "id": "hero-to-reading-area",
@@ -35,7 +37,10 @@
       "z": 1,
       "fit": "cover",
       "editable": false,
-      "source": "clean-background.png"
+      "source": "clean-background.png",
+      "sourceExtractionId": "background-main",
+      "measurementEvidence": "visual-extraction.images/background-main",
+      "coordinateCalibrationId": "page-01-auto-calibration"
     },
     {
       "name": "title-main",
@@ -48,6 +53,17 @@
       "z": 10,
       "editable": true,
       "text": "主标题",
+      "textFlowPolicy": "single-rich-text-frame",
+      "textRuns": [
+        {
+          "text": "主标题",
+          "style": {
+            "fontSizePt": 52,
+            "fontWeight": 800,
+            "color": "#FFFFFF"
+          }
+        }
+      ],
       "style": {
         "fontFamily": "TARGET_FONT",
         "fontSizePt": 52,
@@ -56,7 +72,11 @@
         "lineSpacingPercent": 110,
         "align": "left",
         "verticalAlign": "middle"
-      }
+      },
+      "sourceExtractionId": "title-main",
+      "typographyCalibrationId": "title-main",
+      "measurementEvidence": "visual-extraction.textBlocks/title-main",
+      "coordinateCalibrationId": "page-01-auto-calibration"
     },
     {
       "name": "body-panel-main",
@@ -74,7 +94,11 @@
         "stroke": "#63C8FF",
         "strokeWidthPx": 1,
         "cornerRadiusPx": 8
-      }
+      },
+      "sourceExtractionId": "body-panel-main",
+      "measurementEvidence": "visual-extraction.shapes/body-panel-main",
+      "confidence": 0.85,
+      "coordinateCalibrationId": "page-01-auto-calibration"
     },
     {
       "name": "body-text-main",
@@ -95,7 +119,11 @@
         "lineSpacingPercent": 145,
         "align": "left",
         "verticalAlign": "top"
-      }
+      },
+      "sourceExtractionId": "body-text-main",
+      "typographyCalibrationId": "body-text-main",
+      "measurementEvidence": "visual-extraction.textBlocks/body-text-main",
+      "coordinateCalibrationId": "page-01-auto-calibration"
     },
     {
       "name": "decor-line-subtitle",
@@ -112,12 +140,20 @@
         "stroke": "#FF5B57",
         "strokeWidthPx": 2
       },
-      "clearanceRule": "must not cross rendered text glyphs"
+      "sourceExtractionId": "decor-line-subtitle",
+      "measurementEvidence": "visual-extraction.shapes/decor-line-subtitle",
+      "confidence": 0.9,
+      "clearanceRule": "must not cross rendered text glyphs",
+      "coordinateCalibrationId": "page-01-auto-calibration"
     }
   ],
   "notes": [
     "Mode B 允许背景和主视觉合成；文字、标签、正文框、页码和装饰线保持可编辑。",
     "复杂氛围过渡优先放入无字底图；简单规则渐变才使用 PPT 原生形状。",
-    "复制后删除不适用对象，并替换 TARGET_FONT 和示例文案。"
-  ]
+    "复制后删除不适用对象，并替换 TARGET_FONT 和示例文案。",
+    "layout-spec 中所有对象必须记录 coordinateCalibrationId；临时参考图只允许存在于校准产物，不能进入最终 deck。"
+  ],
+  "coordinateCalibrationFile": "page-01-coordinate-calibration.json",
+  "coordinateCalibrationId": "page-01-auto-calibration",
+  "acceptanceRenderer": "artifact-tool"
 }
