@@ -105,7 +105,9 @@ skills/
 
 ### gpt-image-2-api
 - 触发：用户要求通过 `gpt-image-2`、`gpt-image-2-vip` 或 aifast.site 兼容接口生成、编辑图片
-- 能力：日常标准版 → 复杂/高精度/VIP → 多参考图自动升级 → 2K/4K → 路由预览
+- 能力：日常标准版 → 复杂/高精度/VIP → 多参考图自动升级 → 2K/4K → 路由预览 → `check-config.js` 配置检查
+- 配置：复制 skill 后在本地 `.env`、`.gateway.env` 或 `~/.gateway.env` 放置 `OPENAI_API_KEY`；保持
+  `OPENAI_IMAGE_TIMEOUT_MS=0`；需要 AtlasCloud 编辑备用通道时再配置 `ATLASCLOUD_API_KEY`
 - 入口文件：`skills/gpt-image-2-api/SKILL.md`
 
 ### xiaohongshu

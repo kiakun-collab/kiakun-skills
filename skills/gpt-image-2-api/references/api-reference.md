@@ -99,6 +99,33 @@ When VIP falls back to AtlasCloud, unsupported VIP sizes are mapped conservative
 
 ## Configuration
 
+The scripts call `loadAmbientEnv()` and read settings from these files, in order:
+
+1. `.env` in the current working directory
+2. `.gateway.env` in the current working directory
+3. `~/.gateway.env`
+
+Existing process environment variables win over file values. Prefer `~/.gateway.env` for a local
+agent machine and keep real keys out of this repository.
+
+Agent quick configuration:
+
+```bash
+cd path/to/gpt-image-2-api
+cp .env.example .gateway.env
+# Fill OPENAI_API_KEY. Fill ATLASCLOUD_API_KEY only for Atlas fallback.
+node scripts/check-config.js
+node scripts/generate.js --prompt "smoke test image" --dry-run --json
+```
+
+Expected `check-config.js` signals:
+
+- `ready: true`
+- `hasApiKey: true` for standard/VIP
+- `hasAtlasApiKey: true` only when Atlas fallback is configured
+- `defaultProfile: auto`
+- `timeoutMs: none` when `OPENAI_IMAGE_TIMEOUT_MS=0`
+
 ```dotenv
 OPENAI_API_KEY=
 OPENAI_BASE_URL=https://aifast.site/v1
