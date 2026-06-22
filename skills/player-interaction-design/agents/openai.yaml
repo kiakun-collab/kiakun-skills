@@ -1,0 +1,7 @@
+interface:
+  display_name: "玩家互动设计"
+  short_description: "先写真实玩家入口、主操作、可见反馈和失败恢复路径合同"
+  default_prompt: "Use $player-interaction-design 审查这个游戏 UI/玩法任务的玩家入口、反馈与失败恢复。"
+
+policy:
+  allow_implicit_invocation: true
