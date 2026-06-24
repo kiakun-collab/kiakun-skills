@@ -8,6 +8,12 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 
 ## 最新更新
 
+### 2026-06-22：新增 `player-interaction-design` 玩家互动设计 Skill
+
+新增面向游戏 UI、玩法互动、引导、挑战链路和失败恢复的玩家互动设计 skill。它要求 Agent 在实现、拆任务包或写验收前先写“玩家互动合同”，明确玩家当前阶段、入口、第一眼信息、主操作、成功反馈、阻断原因、恢复路径、下一步和 `not_proven`。
+
+本 skill 同时打包了合同 guide、可复制模板和轻量校验脚本，帮助把“玩家真实怎么交互”从软提示变成可检查的工程约束。
+
 ### 2026-06-22：`ppt-rebuild-workflow` 可编辑 PPT 重构流程增强
 
 本次更新聚焦图片/截图型 PPT 重构的真实生产问题：视觉坐标难测、形状难复原、字号与行距漂移、复杂图片边缘难处理，以及多色文字被拆框后出现异常空隙。
@@ -54,6 +60,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
 | **ppt-rebuild-workflow** | `skills/ppt-rebuild-workflow/` | PPT 重构工作流 | Mode A-E 路由、语义验收、自动坐标校准、视觉抽取、富文本、资产策略、复杂过渡与分级 QA |
 | **game-ui-asset-pipeline** | `skills/game-ui-asset-pipeline/` | 游戏 UI 资产流水线 | 生成、清理、切片、验证并导入 Godot 游戏 UI 图标、HUD glyph、九宫格面板和按钮皮肤 |
+| **player-interaction-design** | `skills/player-interaction-design/` | 游戏玩家互动设计 | 先写玩家入口、主操作、可见反馈、失败恢复和证据层级合同 |
 | **gpt-image-2-api** | `skills/gpt-image-2-api/` | GPT Image 2 API | 日常默认标准版，复杂、高精度、多参考图或受支持的 2K/4K 规格时升级 VIP |
 
 ---
@@ -93,9 +100,11 @@ cp -r skills/cc-switch-claude-provider ~/.claude/skills/
 cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
 cp -r skills/ppt-rebuild-workflow ~/.claude/skills/
 cp -r skills/game-ui-asset-pipeline ~/.claude/skills/
+cp -r skills/player-interaction-design ~/.claude/skills/
 cp -r skills/gpt-image-2-api ~/.claude/skills/
 
 # Codex 示例
+cp -r skills/player-interaction-design ~/.codex/skills/
 cp -r skills/gpt-image-2-api ~/.codex/skills/
 
 # OpenClaw 示例
@@ -167,6 +176,12 @@ kiakun-skills/
     ├── game-ui-asset-pipeline/
     │   ├── SKILL.md           # 游戏 UI 资产流水线
     │   ├── agents/
+    │   ├── references/
+    │   └── scripts/
+    ├── player-interaction-design/
+    │   ├── SKILL.md           # 玩家互动设计合同
+    │   ├── agents/
+    │   ├── assets/
     │   ├── references/
     │   └── scripts/
     ├── gpt-image-2-api/
@@ -296,6 +311,24 @@ kiakun-skills/
 > "用 game-ui-asset-pipeline 帮我给 Godot 餐厅游戏生成一套轻量动漫风 HUD 图标表，并切片导入。"
 
 详见 `skills/game-ui-asset-pipeline/SKILL.md`。
+
+---
+
+### player-interaction-design（玩家互动设计）
+
+用于游戏 UI、玩法互动、引导、挑战链路、任务包拆分和体验验收。它要求 Agent 在动手实现前先写玩家互动合同，避免只改系统状态而忽略真实玩家的入口、主操作、反馈和失败恢复。
+
+**核心能力：**
+- 完整/短合同判断：新入口、新面板、新弹窗、新挑战或失败恢复默认写完整合同。
+- 玩家链路前置：先写玩家当前阶段、目标、入口、第一眼信息、主操作、成功反馈、阻断原因、恢复路径和下一步。
+- 证据层级收口：用 `logic_runner`、`ui_contract`、`interactive_mcp`、`visible_capture`、`manual_canary` 和严格条件下的 `natural UI-only` 区分 claim scope。
+- 结构化字段约束：`证据层级` 只写枚举，runner、fixture、加速、bridge helper、fallback 等说明放到 `证据说明` 或 `not_proven`。
+- 工程化配套：内置合同 guide、任务包模板和 `validate_player_interaction_contract.py` 校验脚本。
+
+**典型用法：**
+> "用 player-interaction-design 审查这个游戏 UI/玩法任务的玩家入口、反馈与失败恢复。"
+
+详见 `skills/player-interaction-design/SKILL.md`。
 
 ---
 

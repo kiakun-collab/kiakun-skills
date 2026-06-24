@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线。
-  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA，或生成、切片、验证、导入 Godot 游戏 UI 资产时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA、生成/切片/验证/导入 Godot 游戏 UI 资产，或审查游戏 UI/玩法互动/引导/失败恢复/挑战链路的玩家体验时触发。
 ---
 
 # Kiakun Skills 集合
@@ -43,6 +43,9 @@ description: |
 10. **GPT Image 2 API**（"API 生图 / gpt-image-2 / gpt-image-2-vip / 2K 4K 图片 / 参考图编辑 / aifast 图片网关"）
    → 执行 `gpt-image-2-api` 技能。
 
+11. **玩家互动设计**（"游戏 UI / 玩法互动 / 引导 / 失败恢复 / 挑战链路 / 任务包体验验收 / 玩家互动合同"）
+   → 执行 `player-interaction-design` 技能。
+
 ## 子技能路径
 
 ```
@@ -54,6 +57,7 @@ skills/
 ├── game-ui-asset-pipeline/   → 游戏 UI 资产生成、切片、验证与 Godot 导入
 ├── gpt-image-2-api/          → GPT Image 2 成本感知 API 生图与编辑
 ├── image-ppt-to-editable-pptx/ → 图片型 PPT 可编辑复刻
+├── player-interaction-design/ → 游戏玩家入口、反馈、失败恢复和证据层级合同
 ├── ppt-rebuild-workflow/     → PPT 重构模式、自动坐标校准、视觉抽取、可编辑边界与分级 QA
 └── xiaohongshu/              → 小红书自动化（含 xhs-auth, xhs-explore, xhs-interact, xhs-publish, xhs-content-ops 等）
 ```
@@ -109,6 +113,11 @@ skills/
 - 配置：复制 skill 后在本地 `.env`、`.gateway.env` 或 `~/.gateway.env` 放置 `OPENAI_API_KEY`；保持
   `OPENAI_IMAGE_TIMEOUT_MS=0`；需要 AtlasCloud 编辑备用通道时再配置 `ATLASCLOUD_API_KEY`
 - 入口文件：`skills/gpt-image-2-api/SKILL.md`
+
+### player-interaction-design
+- 触发：用户要求处理游戏 UI、玩法互动、引导、失败恢复、挑战链路、任务包体验验收或玩家互动合同
+- 能力：完整/短合同判断 → 玩家入口、第一眼信息、主操作、可见反馈、阻断原因和恢复路径前置 → 证据层级结构化 → `not_proven` 收口 → 合同模板与校验脚本
+- 入口文件：`skills/player-interaction-design/SKILL.md`
 
 ### xiaohongshu
 - 触发：用户要求操作小红书
