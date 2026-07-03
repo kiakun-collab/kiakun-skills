@@ -17,9 +17,9 @@
 ## 标准流程
 
 1. 将参考图映射到 1280 x 720 坐标系；记录原始尺寸、缩放、偏移、裁切和 fit mode。每页只允许一个 `coordinateTransform` 作为源像素到 PPT 坐标的依据。
-2. 运行 `scripts/extract_reference_measurements.py` 生成候选文本行、线条、区域框、主色、坐标变换、自动锚点和标注图。
-3. 生成临时校准层：用 6-12 个自动宏观锚点覆盖画布边界、主卡片、图片区、标题带、正文区或页脚等稳定结构。整页参考图只允许存在于该临时层。
-4. 用整页渲染回看自动修正候选：合并属于同一文本块的行，删除噪声框，补充脚本漏掉的主要结构；记录 anchor offset 和例外，而不是请求用户逐点确认。
+2. 运行 `scripts/extract_reference_measurements.py` 生成候选文本行、线条、区域框、主色、坐标变换、自动锚点和标注图；默认 `--fit-mode auto`，禁止非等比静默拉伸。
+3. 生成临时校准层：用 3-12 个稳定自动宏观锚点覆盖主卡片、图片区、标题带、正文区或页脚。不得用文字碎片和贯穿画布的噪声线凑数；少于 3 个时设为 `INSUFFICIENT`。整页参考图只允许存在于该临时层。
+4. 构建并渲染后运行 `scripts/calibrate_reference_render.py`，计算 anchor offset；`INCONCLUSIVE` 或 `FAIL` 都不能进入坐标 PASS。再合并同一文本块、删除噪声框并补充主要结构，不请求用户逐点确认。
 5. 为每个页面对象分配稳定角色：`title-*`、`body-text-*`、`tag-*`、`body-panel-*`、`decor-line-*`、`content-image-*` 等。
 6. 对文字对象填写 bbox、行数、颜色、估计字重、字体候选、候选字号、构建单位、渲染后 bbox 和校准结果。
 7. 对形状对象填写类型、bbox、圆角、填充、描边、透明度、阴影、层级、可编辑策略、自动回退策略和置信度。
@@ -61,7 +61,7 @@
 1. 从参考图记录文字块 bbox、实际字形 bbox、行数、行距像素、文本框内边距和换行位置。
 2. 用目标字体或自动 `fontCandidateSet` 与真实文案生成 2-4 个候选；优先偶数 pt，但允许记录例外。
 3. 对每个候选组合记录：`fontFamily`、`fontSizePt`、构建 API 单位、`lineSpacingPercent`、`textBoxW/H`、`marginLeft/Top/Right/Bottom`、渲染后文本块 bbox、基线差和换行结果。
-4. 选择最接近参考图的候选；若参考图伪字导致字宽不可比，以字高、行距、基线和整体文本块高度为主。
+4. 用 `scripts/score_typography_candidates.py` 测量候选 PNG 并选择最低有效误差；若参考图伪字导致字宽不可比，以字高、行距、基线和整体文本块高度为主。
 5. 修复后必须在同一 `acceptance_renderer` 重新渲染并更新校准记录；不得沿用旧截图判断文字大小。
 
 经验起点：

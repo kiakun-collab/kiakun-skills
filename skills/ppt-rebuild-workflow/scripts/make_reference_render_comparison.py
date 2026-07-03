@@ -6,9 +6,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError as exc:  # pragma: no cover
+    raise SystemExit("Pillow is required: install it with `python -m pip install Pillow`.") from exc
 
 
 def natural_key(path: Path) -> list[object]:
@@ -103,6 +107,8 @@ def main() -> int:
         help="Optional pairing JSON path; defaults beside output as *.pairing.json.",
     )
     args = parser.parse_args()
+    if args.width <= 0 or args.height <= 0:
+        parser.error("--width and --height must be positive")
 
     reference_files = image_files(Path(args.reference_dir))
     render_files = image_files(Path(args.render_dir))
@@ -139,14 +145,18 @@ def main() -> int:
     for row_index, page in enumerate(pages):
         reference_path = references[page]
         render_path = renders[page]
-        with Image.open(reference_path) as reference_image:
-            reference = reference_image.convert("RGB").resize(
-                (width, height), Image.Resampling.LANCZOS
-            )
-        with Image.open(render_path) as render_image:
-            render = render_image.convert("RGB").resize(
-                (width, height), Image.Resampling.LANCZOS
-            )
+        try:
+            with Image.open(reference_path) as reference_image:
+                reference = reference_image.convert("RGB").resize(
+                    (width, height), Image.Resampling.LANCZOS
+                )
+            with Image.open(render_path) as render_image:
+                render = render_image.convert("RGB").resize(
+                    (width, height), Image.Resampling.LANCZOS
+                )
+        except OSError as exc:
+            print(f"image comparison failed on page {page}: {exc}", file=sys.stderr)
+            return 2
         top = row_index * row_height
         canvas.paste(reference, (0, top + label_height))
         canvas.paste(render, (width + gap, top + label_height))

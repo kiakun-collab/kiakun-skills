@@ -81,6 +81,7 @@ python scripts/extract_reference_measurements.py reference-dir --output referenc
 可选参数：
 
 - `--target-width`、`--target-height`：输出坐标系，默认 `1280 x 720`。
+- `--fit-mode auto|contain|cover|stretch`：默认 `auto`；比例不一致时自动使用 `contain` 并记录警告。
 - `--min-component-area`：保留边缘连通组件的最小像素数，默认 `8`。
 - `--max-candidates`：每页每类候选最多数量，默认 `40`。
 - `--auto-anchor-limit`：每页自动宏观锚点最大数量，默认 `12`。
@@ -94,6 +95,10 @@ python scripts/extract_reference_measurements.py reference-dir --output referenc
 - `pages[].scale`
 - `pages[].coordinateTransform`：包含 `sourcePxToCanvas`、`canvasToSourcePx` 和 `fitMode`，用于临时校准层与最终 layout-spec 的坐标锁定。
 - `pages[].autoAnchors`：包含 `id`、`kind`、`bbox`、`confidence`、`sourceCandidateIds` 和 `validation`，用于自动锚点叠加验证。
+- `pages[].anchorQuality`：稳定锚点数量与 `PASS/INSUFFICIENT`；少于 3 个稳定锚点时不得继续声明坐标校准通过。
+- `pages[].anchorAnnotatedImage`：仅显示稳定锚点的低噪声复核图；`annotatedImage` 保留全部候选用于诊断。
+- `pages[].measurementEngine`：`opencv-numpy`、`numpy-scipy` 或 `python`。
+- `pages[].warnings`、`failedPages`：比例风险与逐图失败；单张坏图不终止其余页面。
 - `settings.autoAnchorLimit`
 - `pages[].dominantColors`
 - `pages[].textLineCandidates`
@@ -103,6 +108,30 @@ python scripts/extract_reference_measurements.py reference-dir --output referenc
 - `pages[].annotatedImage`
 
 该脚本只生成测量候选、坐标变换和自动宏观锚点，不是最终视觉判断。agent 必须用 rendered calibration overlay 验证 `coordinateTransform` 和 `autoAnchors`，再写入 `visual-extraction`。脚本候选不得直接等同于最终形状清单、OCR 结果或字体参数。
+
+## calibrate_reference_render.py
+
+```powershell
+python scripts/calibrate_reference_render.py reference-measurements.json render-dir --output coordinate-calibration.json --overlay-dir calibration-overlays
+```
+
+脚本对稳定锚点执行局部边缘匹配，优先使用 OpenCV/NumPy，缺失时自动回退；输出 `calibrationEngine`、`anchorMatches[].dx/dy/confidence/offsetPx`、`maxAnchorOffsetPx`、`tolerancePx` 和叠加图。有效匹配不足时为 `INCONCLUSIVE`，偏移超限时为 `FAIL`；只有计算证据完整且全部页面通过时退出码为 `0`。
+
+## score_typography_candidates.py
+
+```powershell
+python scripts/score_typography_candidates.py typography-calibration.json --output typography-calibration-scored.json
+```
+
+每个候选必须包含 `id`、`renderPath` 和 `renderCrop`。脚本测量 `inkBBox`、行数、行间距、基线代理、裁切和 overflow；行数不符或裁切的候选被拒绝，最终输出 `generatedBy`、`status` 和 `selected.candidateId`。
+
+## validate_rebuild_evidence.py
+
+```powershell
+python scripts/validate_rebuild_evidence.py qa-report.json --normalized-output qa-report-v2.json
+```
+
+新产物使用 `schemaVersion = 2.0`。验证器可读取旧字段并输出 `migrationWarnings`，但规范化输出只写 `visualOverlapCount`、`visionFlaggedPages`、`autoIterationCount`、`acceptanceRenderer` 和 `coordinateSystem.width/height`。退出码：`0` 全部门禁通过，`1` 契约有效但门禁失败，`2` 输入、结构或证据无效。
 
 ## make_reference_render_comparison.py
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "PPT Rebuild Workflow"
   short_description: "Rebuild reference slides into editable PPTX."
-  default_prompt: "Use $ppt-rebuild-workflow to rebuild these slides. Start with task_mode, reference_images, slide_order, qa_level, and output_name; validate semantics before Mode B/C calibration and load the mode workflow."
+  default_prompt: "Use $ppt-rebuild-workflow to rebuild these slides. Validate semantics first, then run computed reference/render and typography calibration before accepting Mode B/C QA."

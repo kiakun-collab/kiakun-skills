@@ -2,6 +2,8 @@
 
 用于一页一张无字底图、上层文字和结构可编辑的 PPT 重构。适合分隔页、速度优先、但仍需要修改文案和版式的任务。
 
+样式参数使用 [style-spec-template.md](../assets/templates/style-spec-template.md)，最终报告使用 [qa-report-template.json](../assets/templates/qa-report-template.json)。
+
 ## 输入
 
 - 参考图或无字底图目录。
@@ -34,29 +36,11 @@
 
 ## Level 2 硬门槛
 
-- 必须生成参考图与渲染图对照图。
-- 必须生成逐页 `visual-extraction`、测量标注图和 `typography-calibration`；低置信对象必须闭环。
-- 必须生成 `coordinateTransform`、6-12 个自动宏观锚点和临时校准层；`coordinateCalibration.status = PASS`。
-- 必须为每页保存可检查的 `layout-spec` 文件，不能只把参数留在构建脚本中。
-- `textFrameIntersections = 0`。
-- `visionAuditStatus = PASS` 且 `visualOverlapCount = 0`。
-- `visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。
-- `visibleAssetSeamCount = 0`，关键过渡区已逐页记录。
-- 不要求像素级完全一致，但标题、正文、标签、结构区和背景主视觉必须达到参考图目标。
-- 装饰线、页码线、边框等细长形状不能侵入文字字形；几何候选必须逐项消除或解释。
-- 普通分隔页每页长正文文本框候选默认恰好 `1` 个；没有正文或特殊多栏页面必须在 QA 中说明例外。
-- 必须按页统计形状角色：标签、正文框、边框、页码线、装饰线、遮罩、图片。
-- 字体探针必须在 `acceptance_renderer` 中完成；主文字样式没有溢出、换行符合参考，且最终 bbox 误差有记录。
+完整门槛只以 [qa-standards.md](qa-standards.md) 和 [level-2-delivery-checklist.md](../assets/templates/level-2-delivery-checklist.md) 为准。本工作流额外要求坐标校准与字体校准来自对应脚本的计算证据；手填 PASS 不生效。
 
 ## 导出和预览降级
 
-构建脚本应优先保存 PPTX，再生成预览。预览写入失败不能直接让整个任务失败：
-
-- 先确认 PPTX 是否已落盘。
-- 如果 PPTX 已落盘，继续做包内 QA。
-- 如果 PPTX 未落盘，调整脚本顺序，让 PPTX 保存早于预览。
-- 不默认请求提权；先尝试普通权限预创建目录、改输出目录或跳过预览。
-- 最终报告必须说明预览是否真实生成、复用旧预览或缺失。
+遵循 [SKILL.md 的失败降级](../SKILL.md#失败降级)，不要在本工作流维护另一套规则。
 
 ## 底图要求
 

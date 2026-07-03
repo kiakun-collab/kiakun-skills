@@ -1,5 +1,7 @@
 # Visual Fidelity QA
 
+输出使用 [visual-fidelity-audit-template.json](../assets/templates/visual-fidelity-audit-template.json)。
+
 用于判断最终 PPT 重构是否达到参考图的视觉目标。视觉 QA 采用双门禁：
 
 1. 文字可读性门禁：文字清晰、完整，没有破坏性遮挡、裁切或重叠。

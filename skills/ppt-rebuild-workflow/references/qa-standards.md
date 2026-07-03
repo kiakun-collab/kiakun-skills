@@ -34,12 +34,13 @@
 - 运行 `scripts/make_reference_render_comparison.py` 或等价流程；页码映射、缺失页、重复页和多余页检查通过，并保留 pairing JSON。
 - 任务输入文件和每页 `layout-spec` 已落盘；关键渐隐、光晕和图片边缘已记录在 `visualTransitions`。
 - 每页 `visual-extraction`、测量标注图和 `typography-calibration` 已落盘；每个最终可编辑对象有 `sourceExtractionId`、`coordinateCalibrationId`、原 PPTX 对象或明确来源说明。
-- 每页 `coordinateTransform`、6-12 个自动宏观锚点、临时校准层和 `coordinateCalibration.status = PASS` 已落盘；最终 deck 不包含临时整页参考图。
+- 每页 `coordinateTransform`、3-12 个稳定自动宏观锚点、临时校准层和脚本生成的 `coordinateCalibration.status = PASS` 已落盘；少于 3 个时必须为 `INSUFFICIENT`，最终 deck 不包含临时整页参考图。
 - 低置信文字、形状、图片和间距对象已进入风险列表并闭环；复杂低置信对象自动选择 `baked-asset` 或 Mode B fallback，不得把未解释对象静默写入最终 PPTX。
 - 标题、正文、标签和页码等主要文字样式已在 `acceptanceRenderer` 中完成 2-4 个候选渲染比较，并记录 bbox、baseline、wrap 和 overflow。
 - 同一语义行、口号或标题中的多色/多字号强调已优先实现为单文本框富文本 runs；如拆成多个文本框，必须有独立布局原因，并记录拆分后的视觉间距证据。
 - 富文本 runs 的颜色、字号、字重和描边在最终渲染 PNG 中保持区分；不能因合并文本框而退化为统一样式。
 - `assets/templates/level-2-delivery-checklist.md` 已逐项完成。
+- 运行 `scripts/validate_rebuild_evidence.py`；退出码必须为 `0`，不得用手填 PASS 替代计算证据。
 
 ### Level 2 必须视觉门禁
 
@@ -81,7 +82,7 @@
 - Level 2 全部通过。
 - 参考图 vs 渲染图并排图已检查。
 - `visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。
-- `unexpectedTextOverlapCount = 0`。
+- `visualOverlapCount = 0`。
 - `wholeReferenceImageEmbedded` 的状态、自动风险证据和人工对照结论证明未嵌入整页参考图。
 - `combinedBackgroundPersonPictureCount = 0`，或 asset-audit 记录不可拆分例外。
 - `contentPicturesAreIndependentObjects = true`。
@@ -94,6 +95,7 @@
 - 完成 [level-3-delivery-checklist.md](../assets/templates/level-3-delivery-checklist.md)。
 
 Level 3 每项门槛都必须记录 `automatedEvidence`、`manualEvidence` 和 `status`。自动化无法证明的项目必须由人工证据闭环。
+Level 3 的 `visualExtractionComplete`、`typographyCalibrationComplete` 和 `visualOverlapCount` 必须进入 `level3Gates`，不能只留在普通 checks。
 
 ## Level 4 增量修改 QA
 
@@ -112,11 +114,4 @@ Level 3 每项门槛都必须记录 `automatedEvidence`、`manualEvidence` 和 `
 
 ## 导出失败处理
 
-不要默认请求提权。普通权限下导出或预览失败时：
-
-1. 预创建输出目录。
-2. 改到新版本目录。
-3. 让 PPTX 保存早于预览。
-4. 如果预览失败但 PPTX 存在，继续包内 QA。
-5. 复用旧预览或旧 PPTX 时标记为回归测试，不能标记为完整新构建。
-6. 遵循当前线程权限策略。
+遵循 [SKILL.md 的失败降级](../SKILL.md#失败降级)。复用旧预览或旧 PPTX 时标记为回归测试，不能标记为完整新构建。

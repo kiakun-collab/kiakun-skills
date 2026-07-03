@@ -51,6 +51,7 @@ description: Use when rebuilding slide screenshots, image-only PPTX files, AI-ge
 - `overwrite_policy`：默认禁止覆盖。
 
 使用 [task-input-template.json](assets/templates/task-input-template.json) 记录输入。Mode B 和 Mode C 在构建前必须把关键字段落盘；不能只依赖会话记忆。
+对话字段使用 snake_case，模板使用 camelCase；完整映射写在模板 `notes` 中。
 
 ## 任务模式
 
@@ -70,10 +71,10 @@ description: Use when rebuilding slide screenshots, image-only PPTX files, AI-ge
 
 1. 冻结任务边界、输出路径、模式和 QA 等级。
 2. 先做语义验收、异常文字恢复和资产策略；若参考图语义或版式方向错误，转 Mode D。
-3. Mode B/C 建立自动坐标锁，完成逐页视觉抽取、渲染探针文字校准、`layout-spec` 和 `style-spec`。
+3. Mode B/C 建立自动坐标锁，完成逐页视觉抽取；渲染后必须运行坐标偏移计算和字体候选评分，再生成 `layout-spec` 与 `style-spec`。
 4. 构建 PPTX，先保存成品，再用同一渲染后端导出预览。
 5. 运行包内/几何审计和最终 PNG 视觉审计，执行文字可读性与参考图还原度双门禁。
-6. 自动返修最多三轮；仍失败时执行最小自动降级，不能标记为完整通过。
+6. 首次构建记为第 0 轮，自动返修最多三轮；仍失败时执行最小自动降级，不能标记为完整通过。
 7. 交付报告中说明文件路径、页数、字体、媒体、文本对象、形状、自动降级和未完成风险。
 
 Mode B Level 2 交付前逐项完成 [level-2-delivery-checklist.md](assets/templates/level-2-delivery-checklist.md)。
@@ -105,8 +106,15 @@ Mode C Level 3 交付前逐项完成 [level-3-delivery-checklist.md](assets/temp
 
 - Mode B 布局参考：[layout-spec-mode-b-example.json](assets/templates/layout-spec-mode-b-example.json)。
 - Mode C 布局参考：[layout-spec-mode-c-example.json](assets/templates/layout-spec-mode-c-example.json)。
+- 通用布局模板：[layout-spec-template.json](assets/templates/layout-spec-template.json)。
 - 视觉抽取模板：[visual-extraction-template.json](assets/templates/visual-extraction-template.json)。
 - 字号校准模板：[typography-calibration-template.json](assets/templates/typography-calibration-template.json)。
+- QA 报告模板：[qa-report-template.json](assets/templates/qa-report-template.json)。
+- 视觉重叠模板：[visual-overlap-audit-template.json](assets/templates/visual-overlap-audit-template.json)。
+- 视觉还原度模板：[visual-fidelity-audit-template.json](assets/templates/visual-fidelity-audit-template.json)。
+- 资产审计模板：[asset-audit-template.md](assets/templates/asset-audit-template.md)。
+- 样式规格模板：[style-spec-template.md](assets/templates/style-spec-template.md)。
+- 页面任务模板：[page-task-template.md](assets/templates/page-task-template.md)。
 - 全自动校准与门禁：[autonomous-calibration.md](references/autonomous-calibration.md)。
 - 示例中的对象按实际页面删减，不能把示例内容原样带入成品。
 
@@ -115,7 +123,10 @@ Mode C Level 3 交付前逐项完成 [level-3-delivery-checklist.md](assets/temp
 - `scripts/audit_pptx_structure.py`：包内结构、字体、对象角色和图片风险审计。
 - `scripts/audit_pptx_text_frames.py`：文本框、细长形状和几何覆盖风险审计。
 - `scripts/extract_reference_measurements.py`：参考图测量候选、坐标变换、自动锚点和标注图。
+- `scripts/calibrate_reference_render.py`：匹配参考图与最终渲染锚点，计算真实坐标偏移和校准状态。
+- `scripts/score_typography_candidates.py`：测量候选渲染图并自动选择文字参数。
 - `scripts/make_reference_render_comparison.py`：参考图与渲染图配对对照。
+- `scripts/validate_rebuild_evidence.py`：迁移旧字段并验证产物引用、计算证据和 QA 门禁。
 
 命令、参数和输出字段统一见 [script-output-contracts.md](references/script-output-contracts.md)；修改脚本输出时必须同步更新该契约和 QA 模板。
 

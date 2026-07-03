@@ -8,10 +8,10 @@ import json
 import math
 import posixpath
 import re
+import sys
 import zipfile
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree as ET
-
 
 NS = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -31,12 +31,20 @@ def related_part(
     zf: zipfile.ZipFile,
     source_part: str,
     relationship_type: str,
+    names: set[str] | None = None,
+    relationship_cache: dict[str, ET.Element] | None = None,
 ) -> str | None:
     source = PurePosixPath(source_part)
     rels_name = str(source.parent / "_rels" / f"{source.name}.rels")
-    if rels_name not in zf.namelist():
+    names = names if names is not None else set(zf.namelist())
+    if rels_name not in names:
         return None
-    root = ET.fromstring(zf.read(rels_name))
+    if relationship_cache is not None and rels_name in relationship_cache:
+        root = relationship_cache[rels_name]
+    else:
+        root = ET.fromstring(zf.read(rels_name))
+        if relationship_cache is not None:
+            relationship_cache[rels_name] = root
     for relationship in root.findall("./rel:Relationship", REL_NS):
         if relationship.attrib.get("Type") != relationship_type:
             continue
@@ -148,20 +156,40 @@ def find_placeholder(root: ET.Element | None, key: tuple[str, str]) -> ET.Elemen
     return None
 
 
+def placeholder_index(root: ET.Element | None) -> dict[str, dict[str, ET.Element]]:
+    result = {"idx": {}, "type": {}}
+    if root is None:
+        return result
+    for shape in root.findall(".//p:sp", NS):
+        key = placeholder_key(shape)
+        if key is None:
+            continue
+        index, placeholder_type = key
+        if index:
+            result["idx"].setdefault(index, shape)
+        result["type"].setdefault(placeholder_type, shape)
+    return result
+
+
 def inherited_frame(
     shape: ET.Element,
-    layout_root: ET.Element | None,
-    master_root: ET.Element | None,
+    layout_index: dict[str, dict[str, ET.Element]],
+    master_index: dict[str, dict[str, ET.Element]],
 ) -> tuple[dict[str, float] | None, str]:
     key = placeholder_key(shape)
     if key is None:
         return None, "unresolved"
-    layout_shape = find_placeholder(layout_root, key)
+    index, placeholder_type = key
+    layout_shape = layout_index["idx"].get(index) if index else None
+    if layout_shape is None:
+        layout_shape = layout_index["type"].get(placeholder_type)
     if layout_shape is not None:
         frame = raw_frame(layout_shape)
         if frame is not None:
             return frame[0], "layout"
-    master_shape = find_placeholder(master_root, key)
+    master_shape = master_index["idx"].get(index) if index else None
+    if master_shape is None:
+        master_shape = master_index["type"].get(placeholder_type)
     if master_shape is not None:
         frame = raw_frame(master_shape)
         if frame is not None:
@@ -212,10 +240,10 @@ def group_transform(
     child_h = float(child_ext.attrib.get("cy", "0"))
     if child_w == 0 or child_h == 0:
         return None, "group child extent is zero"
-    local_sx = float(ext.attrib["cx"]) / child_w
-    local_sy = float(ext.attrib["cy"]) / child_h
-    local_tx = float(off.attrib["x"]) - float(child_off.attrib["x"]) * local_sx
-    local_ty = float(off.attrib["y"]) - float(child_off.attrib["y"]) * local_sy
+    local_sx = float(ext.attrib.get("cx", "0")) / child_w
+    local_sy = float(ext.attrib.get("cy", "0")) / child_h
+    local_tx = float(off.attrib.get("x", "0")) - float(child_off.attrib.get("x", "0")) * local_sx
+    local_ty = float(off.attrib.get("y", "0")) - float(child_off.attrib.get("y", "0")) * local_sy
     parent_sx, parent_sy, parent_tx, parent_ty = parent
     return (
         (
@@ -260,16 +288,21 @@ def collect_slide_shapes(
 
 def audit(pptx_path: Path, body_min_chars: int, min_overlap_px: float) -> dict:
     with zipfile.ZipFile(pptx_path) as zf:
+        names = set(zf.namelist())
+        if "ppt/presentation.xml" not in names:
+            raise ValueError("PPTX package has no ppt/presentation.xml")
         presentation = ET.fromstring(zf.read("ppt/presentation.xml"))
         size = presentation.find("./p:sldSz", NS)
         if size is None:
             raise ValueError("ppt/presentation.xml has no p:sldSz")
-        slide_w = int(size.attrib["cx"])
-        slide_h = int(size.attrib["cy"])
+        slide_w = int(size.attrib.get("cx", "0"))
+        slide_h = int(size.attrib.get("cy", "0"))
+        if slide_w <= 0 or slide_h <= 0:
+            raise ValueError("ppt/presentation.xml has invalid slide dimensions")
         slide_names = sorted(
             [
                 name
-                for name in zf.namelist()
+                for name in names
                 if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)
             ],
             key=slide_sort_key,
@@ -285,15 +318,38 @@ def audit(pptx_path: Path, body_min_chars: int, min_overlap_px: float) -> dict:
         total_rotated = 0
         total_groups_resolved = 0
         total_groups_unresolved = 0
+        relationship_cache: dict[str, ET.Element] = {}
+        part_cache: dict[str, ET.Element] = {}
+        placeholder_cache: dict[str, dict[str, dict[str, ET.Element]]] = {}
 
         for page_number, slide_name in enumerate(slide_names, start=1):
             root = ET.fromstring(zf.read(slide_name))
-            layout_name = related_part(zf, slide_name, SLIDE_LAYOUT_REL)
-            layout_root = ET.fromstring(zf.read(layout_name)) if layout_name else None
-            master_name = (
-                related_part(zf, layout_name, SLIDE_MASTER_REL) if layout_name else None
+            layout_name = related_part(
+                zf, slide_name, SLIDE_LAYOUT_REL, names, relationship_cache
             )
-            master_root = ET.fromstring(zf.read(master_name)) if master_name else None
+            if layout_name and layout_name not in part_cache:
+                part_cache[layout_name] = ET.fromstring(zf.read(layout_name))
+            layout_root = part_cache.get(layout_name) if layout_name else None
+            master_name = (
+                related_part(
+                    zf, layout_name, SLIDE_MASTER_REL, names, relationship_cache
+                )
+                if layout_name
+                else None
+            )
+            if master_name and master_name not in part_cache:
+                part_cache[master_name] = ET.fromstring(zf.read(master_name))
+            master_root = part_cache.get(master_name) if master_name else None
+            if layout_name and layout_name not in placeholder_cache:
+                placeholder_cache[layout_name] = placeholder_index(layout_root)
+            if master_name and master_name not in placeholder_cache:
+                placeholder_cache[master_name] = placeholder_index(master_root)
+            layout_placeholders = placeholder_cache.get(
+                layout_name or "", {"idx": {}, "type": {}}
+            )
+            master_placeholders = placeholder_cache.get(
+                master_name or "", {"idx": {}, "type": {}}
+            )
             shapes, resolved_groups, group_risks = collect_slide_shapes(root)
             text_shapes = []
             thin_shapes = []
@@ -318,7 +374,7 @@ def audit(pptx_path: Path, body_min_chars: int, min_overlap_px: float) -> dict:
                 inherited_from = None
                 if frame_data is None and text:
                     inherited, inherited_from = inherited_frame(
-                        shape, layout_root, master_root
+                        shape, layout_placeholders, master_placeholders
                     )
                     if inherited is None:
                         unresolved_count += 1
@@ -457,7 +513,7 @@ def audit(pptx_path: Path, body_min_chars: int, min_overlap_px: float) -> dict:
             "settings": {
                 "bodyMinChars": body_min_chars,
                 "minOverlapPx": min_overlap_px,
-                "coordinateSystemPx": {"w": 1280, "h": 720},
+                "coordinateSystemPx": {"width": 1280, "height": 720},
             },
             "slideSizeEmu": {"w": slide_w, "h": slide_h},
             "pages": pages,
@@ -489,11 +545,19 @@ def main() -> int:
     parser.add_argument("--min-overlap-px", type=float, default=1.0)
     args = parser.parse_args()
 
-    result = audit(
-        Path(args.pptx),
-        body_min_chars=args.body_min_chars,
-        min_overlap_px=args.min_overlap_px,
-    )
+    pptx_path = Path(args.pptx)
+    if not pptx_path.exists():
+        print(f"PPTX not found: {pptx_path}", file=sys.stderr)
+        return 2
+    try:
+        result = audit(
+            pptx_path,
+            body_min_chars=args.body_min_chars,
+            min_overlap_px=args.min_overlap_px,
+        )
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, ET.ParseError) as exc:
+        print(f"PPTX text-frame audit failed: {exc}", file=sys.stderr)
+        return 2
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(

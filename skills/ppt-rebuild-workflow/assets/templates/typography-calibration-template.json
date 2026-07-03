@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "2.0",
   "page": "XX",
   "targetFont": "",
   "fontCandidateSet": [],
@@ -24,6 +25,9 @@
       },
       "candidates": [
         {
+          "id": "body-text-main-candidate-01",
+          "renderPath": "",
+          "renderCrop": { "x": 0, "y": 0, "w": 0, "h": 0 },
           "fontFamily": "",
           "fontSizePt": 16,
           "constructionFontSize": null,
@@ -41,6 +45,7 @@
         }
       ],
       "selected": {
+        "candidateId": null,
         "fontFamily": null,
         "fontSizePt": null,
         "constructionFontSize": null,

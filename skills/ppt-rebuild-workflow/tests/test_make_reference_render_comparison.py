@@ -10,7 +10,6 @@ from pathlib import Path
 
 from PIL import Image
 
-
 SCRIPT = (
     Path(__file__).resolve().parents[1]
     / "scripts"
@@ -22,7 +21,11 @@ def write_image(path: Path) -> None:
     Image.new("RGB", (64, 36), "#446688").save(path)
 
 
-def run_comparison(reference_dir: Path, render_dir: Path, output: Path) -> subprocess.CompletedProcess:
+def run_comparison(
+    reference_dir: Path,
+    render_dir: Path,
+    output: Path,
+) -> subprocess.CompletedProcess:
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     return subprocess.run(

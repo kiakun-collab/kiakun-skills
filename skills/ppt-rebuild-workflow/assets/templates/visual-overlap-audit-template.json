@@ -1,10 +1,11 @@
 {
+  "schemaVersion": "2.0",
   "renderDirectory": "",
   "acceptanceRenderer": "",
   "reviewedAtFullResolution": true,
   "visionAuditStatus": "",
   "visualOverlapCount": null,
-  "autoIteration": 0,
+  "autoIterationCount": 0,
   "allowedVisualOverlaps": [
     {
       "page": null,
@@ -17,7 +18,7 @@
   "needsHumanReview": false,
   "conflictingAuditRounds": [],
   "humanReviewEvidence": "",
-  "flaggedPages": [],
+  "visionFlaggedPages": [],
   "issues": [
     {
       "page": null,

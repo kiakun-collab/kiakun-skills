@@ -5,11 +5,22 @@ import re
 import unittest
 from pathlib import Path
 
-
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 
 
 class ModeSelectionContractTests(unittest.TestCase):
+    def test_json_templates_use_v2_canonical_fields(self) -> None:
+        template_dir = SKILL_ROOT / "assets" / "templates"
+        for path in template_dir.glob("*.json"):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data.get("schemaVersion"), "2.0", path.name)
+        combined = "\n".join(
+            path.read_text(encoding="utf-8") for path in template_dir.glob("*.json")
+        )
+        self.assertNotIn('"unexpectedTextOverlapCount"', combined)
+        self.assertNotIn('"flaggedPages"', combined)
+        self.assertNotIn('"autoIteration"', combined)
+
     def test_mode_e_has_highest_routing_priority(self) -> None:
         text = (SKILL_ROOT / "references" / "mode-selection.md").read_text(
             encoding="utf-8"
@@ -58,7 +69,9 @@ class ModeSelectionContractTests(unittest.TestCase):
             "wholeReferenceImageEmbedded",
             "combinedBackgroundPersonPictureCount",
             "contentPicturesAreIndependentObjects",
-            "unexpectedTextOverlapCount",
+            "visualOverlapCount",
+            "visualExtractionComplete",
+            "typographyCalibrationComplete",
             "forbiddenOverlayShapesDetected",
         ):
             self.assertEqual(
@@ -228,7 +241,7 @@ class ModeSelectionContractTests(unittest.TestCase):
             page_task.index("测量参考图"),
             page_task.index("layout-spec"),
         )
-        self.assertIn("保存测量 JSON 和标注图", page_task)
+        self.assertIn("保存测量 JSON、标注图", page_task)
 
     def test_complex_visual_transitions_have_explicit_asset_and_qa_contracts(
         self,

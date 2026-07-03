@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "2.0",
   "outputPptx": "",
   "qaLevel": "",
   "autonomyProfile": "auto-calibrated",
@@ -78,7 +79,9 @@
     "wholeReferenceImageEmbedded": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
     "combinedBackgroundPersonPictureCount": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
     "contentPicturesAreIndependentObjects": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
-    "unexpectedTextOverlapCount": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
+    "visualOverlapCount": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
+    "visualExtractionComplete": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
+    "typographyCalibrationComplete": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
     "forbiddenOverlayShapesDetected": { "automatedEvidence": "", "manualEvidence": "", "status": "" }
   },
   "auditArtifacts": {
