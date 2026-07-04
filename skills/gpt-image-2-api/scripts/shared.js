@@ -17,6 +17,7 @@ export const HD_MODEL = ATLAS_MODEL;
 export const DEFAULT_PROFILE = "auto";
 export const DEFAULT_STANDARD_SIZE = "1024x1024";
 export const DEFAULT_VIP_SIZE = "2048x2048";
+export const DEFAULT_VIP_GENERATION_SIZE = DEFAULT_VIP_SIZE;
 export const DEFAULT_VIP_QUALITY = "high";
 export const DEFAULT_ATLAS_SIZE = "2048x2048";
 export const DEFAULT_ATLAS_QUALITY = "high";
@@ -50,7 +51,72 @@ const RATIO_SIZES = new Set([
   "3:1",
   "1:3",
 ]);
-const GENERATION_PIXEL_SIZES = new Set(["auto", "1024x1024", "1536x1024", "1024x1536"]);
+const GENERATION_PIXEL_SIZES = new Set([
+  "auto",
+  "256x256",
+  "512x512",
+  "1024x1024",
+  "1536x1024",
+  "1792x1024",
+  "1024x1536",
+  "1024x1792",
+  "1280x720",
+  "720x1280",
+]);
+const VIP_GENERATION_PIXEL_SIZES = new Set([
+  "1024x1024",
+  "2048x2048",
+  "2880x2880",
+  "1280x720",
+  "2560x1440",
+  "3840x2160",
+  "720x1280",
+  "1440x2560",
+  "2160x3840",
+  "1152x864",
+  "2304x1728",
+  "3264x2448",
+  "864x1152",
+  "1728x2304",
+  "2448x3264",
+  "1248x832",
+  "2496x1664",
+  "3504x2336",
+  "832x1248",
+  "1664x2496",
+  "2336x3504",
+  "1120x896",
+  "2240x1792",
+  "3200x2560",
+  "896x1120",
+  "1792x2240",
+  "2560x3200",
+  "1456x624",
+  "3024x1296",
+  "3696x1584",
+]);
+const VIP_GENERATION_RATIO_SIZES = new Map([
+  ["auto", DEFAULT_VIP_GENERATION_SIZE],
+  ["1:1", "2048x2048"],
+  ["16:9", "2560x1440"],
+  ["9:16", "1440x2560"],
+  ["4:3", "2304x1728"],
+  ["3:4", "1728x2304"],
+  ["3:2", "2496x1664"],
+  ["2:3", "1664x2496"],
+  ["5:4", "2240x1792"],
+  ["4:5", "1792x2240"],
+  ["21:9", "3024x1296"],
+]);
+const STANDARD_TO_VIP_GENERATION_SIZES = new Map([
+  ["1024x1024", "2048x2048"],
+  ["1280x720", "2560x1440"],
+  ["720x1280", "1440x2560"],
+  ["1536x1024", "2496x1664"],
+  ["1024x1536", "1664x2496"],
+  ["1792x1024", "2560x1440"],
+  ["1024x1792", "1440x2560"],
+]);
 const STANDARD_PIXEL_SIZES = new Set([
   "256x256",
   "512x512",
@@ -199,21 +265,33 @@ function normalizeModel(model) {
   return model;
 }
 
-function generationSizeFromRatio(size) {
+function standardGenerationSizeFromRatio(size) {
   if (GENERATION_PIXEL_SIZES.has(size)) return size;
   const match = /^(\d+):(\d+)$/.exec(size || "");
   if (!match) return size;
   const width = Number(match[1]);
   const height = Number(match[2]);
   if (width === height) return "1024x1024";
+  if (width / height >= 1.7) return "1280x720";
+  if (height / width >= 1.7) return "720x1280";
   return width > height ? "1536x1024" : "1024x1536";
+}
+
+function vipGenerationSize(size) {
+  if (VIP_GENERATION_PIXEL_SIZES.has(size)) return size;
+  if (VIP_GENERATION_RATIO_SIZES.has(size)) return VIP_GENERATION_RATIO_SIZES.get(size);
+  if (STANDARD_TO_VIP_GENERATION_SIZES.has(size)) return STANDARD_TO_VIP_GENERATION_SIZES.get(size);
+  return size;
 }
 
 function validateSize(size, tier, operation) {
   if (operation === "generate") {
-    if (!GENERATION_PIXEL_SIZES.has(size)) {
+    const valid = tier === "vip" ? VIP_GENERATION_PIXEL_SIZES : GENERATION_PIXEL_SIZES;
+    if (!valid.has(size)) {
       throw new Error(
-        `Unsupported generation size: ${size}. The create endpoint supports auto, 1024x1024, 1536x1024, or 1024x1536. Use a ratio token such as 9:16 to map to the nearest supported size.`,
+        tier === "vip"
+          ? `Unsupported gpt-image-2-max generation size: ${size}. Use an aifast VIP/max preset such as 2048x2048, 2560x1440, 1440x2560, 3840x2160, or 2160x3840; ratio tokens such as 9:16 map to the documented 2K presets.`
+          : `Unsupported generation size: ${size}. The standard create endpoint supports documented 1K presets such as 1024x1024, 1280x720, 720x1280, 1536x1024, or 1024x1536. Use a ratio token such as 9:16 to map to the nearest supported size.`,
       );
     }
     return;
@@ -271,7 +349,7 @@ export function resolveImageOptions(
   const vipReasons = [];
   if (referenceCount >= 2) vipReasons.push("multiple-reference-images");
   if (requestedQuality) vipReasons.push("quality-control-requested");
-  if (requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
+  if (requestedSize && VIP_PIXEL_SIZES.has(requestedSize) && !STANDARD_PIXEL_SIZES.has(requestedSize)) {
     vipReasons.push("2k-or-4k-preset-requested");
   }
 
@@ -299,7 +377,12 @@ export function resolveImageOptions(
   if (tier === "standard" && requestedQuality) {
     throw new Error("quality is only supported by gpt-image-2-max or AtlasCloud.");
   }
-  if (tier === "standard" && requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
+  if (
+    tier === "standard" &&
+    requestedSize &&
+    VIP_PIXEL_SIZES.has(requestedSize) &&
+    !STANDARD_PIXEL_SIZES.has(requestedSize)
+  ) {
     throw new Error("2K/4K output presets require profile vip or profile auto.");
   }
   if (
@@ -314,9 +397,14 @@ export function resolveImageOptions(
   let resolvedSize =
     requestedSize ||
     (operation === "generate"
-      ? process.env.GPT_IMAGE_GENERATION_SIZE ||
-        process.env.GPT_IMAGE_STANDARD_SIZE ||
-        DEFAULT_STANDARD_SIZE
+      ? tier === "vip"
+        ? process.env.GPT_IMAGE_VIP_GENERATION_SIZE ||
+          process.env.GPT_IMAGE_VIP_SIZE ||
+          process.env.GPT_IMAGE_HD_SIZE ||
+          DEFAULT_VIP_GENERATION_SIZE
+        : process.env.GPT_IMAGE_GENERATION_SIZE ||
+          process.env.GPT_IMAGE_STANDARD_SIZE ||
+          DEFAULT_STANDARD_SIZE
       : tier === "vip"
         ? process.env.GPT_IMAGE_VIP_SIZE || process.env.GPT_IMAGE_HD_SIZE || DEFAULT_VIP_SIZE
         : tier === "atlas"
@@ -324,7 +412,11 @@ export function resolveImageOptions(
             process.env.GPT_IMAGE_HD_SIZE ||
             DEFAULT_ATLAS_SIZE
           : process.env.GPT_IMAGE_STANDARD_SIZE || DEFAULT_STANDARD_SIZE);
-  if (operation === "generate") resolvedSize = generationSizeFromRatio(resolvedSize);
+  if (operation === "generate") {
+    resolvedSize = tier === "vip"
+      ? vipGenerationSize(resolvedSize)
+      : standardGenerationSizeFromRatio(resolvedSize);
+  }
   validateSize(resolvedSize, tier, operation);
 
   const resolvedQuality =

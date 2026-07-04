@@ -115,8 +115,9 @@ node scripts/generate.js --model gpt-image-2-max --size 9:16 --quality high \
 ```
 
 For generation, `--quality high` is only a routing hint that selects `gpt-image-2-max`; it is not
-sent as an API field. The create endpoint supports `auto`, `1024x1024`, `1536x1024`, and
-`1024x1536`; ratio tokens such as `9:16` are mapped to the nearest supported create size.
+sent as an API field. Standard `gpt-image-2` uses the provider 1K create sizes. Max
+`gpt-image-2-max` follows the aifast VIP size table; ratio tokens such as `9:16` map to documented
+2K presets such as `1440x2560` so the requested and returned dimensions stay aligned.
 
 ## Routing
 
@@ -141,15 +142,21 @@ reference image; VIP text-to-image does not fall back. Disable edit fallback wit
 - Routing: `--profile auto|standard|vip|atlas`; prefer `auto` (`hd` = legacy alias for `vip`).
 - References for editing: repeat `--image` for local files or repeat `--url` for public URLs.
   Do not mix `--image` and `--url` in the same request.
-- Generation size: `auto`, `1024x1024`, `1536x1024`, or `1024x1536`; ratio tokens such as
-  `9:16` map to the nearest supported create size.
+- Standard generation size: `auto`, `256x256`, `512x512`, `1024x1024`, `1280x720`,
+  `720x1280`, `1536x1024`, `1024x1536`, `1792x1024`, or `1024x1792`.
+- Max generation size: a documented aifast VIP/max preset, including 1K, 2K, and 4K table
+  entries such as `2048x2048`, `2560x1440`, `1440x2560`, `3840x2160`, or `2160x3840`.
+  Ratio tokens such as `9:16` map to the documented 2K presets by default.
 - Edit/VIP size: a documented edit preset or ratio token such as `9:16`.
 - Quality: for generation, `--quality` only routes to `gpt-image-2-max` and is omitted from the
-  API request; for Atlas fallback, `auto`, `low`, `medium`, or `high` are supported.
+  API request. Live probes against aifast showed `quality` can make max generation disconnect even
+  when the same size succeeds without it. For edit/Atlas fallback, `auto`, `low`, `medium`, or
+  `high` are supported.
 - Timeout: leave `OPENAI_IMAGE_TIMEOUT_MS=0` so long high-resolution jobs can finish.
 - Retries: `OPENAI_IMAGE_MAX_RETRIES` also covers generated-image URL downloads and remote
   reference downloads; 5xx/429/network failures retry, ordinary 4xx failures do not.
-- Generation omits unsupported `quality` and `response_format` fields per the provider OpenAPI.
+- Generation omits `quality` and `response_format`; the scripts save either `data[].url` or
+  `data[].b64_json` responses.
 - Output: `--output`, optional `--prompt-output`, and recommended `--json`.
 
 Read [references/api-reference.md](./references/api-reference.md) for provider payloads,

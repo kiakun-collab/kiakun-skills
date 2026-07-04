@@ -119,22 +119,39 @@ test("VIP accepts ratio size tokens for max model", () => {
   assert.equal(options.quality, "high");
 });
 
-test("generation maps ratio tokens to create-endpoint sizes and omits quality", () => {
+test("VIP generation maps ratio tokens to max 2K presets and omits quality", () => {
   const options = resolveImageOptions(
     { model: "gpt-image-2-max", size: "9:16", quality: "high" },
     { operation: "generate" },
   );
   assert.equal(options.model, "gpt-image-2-max");
   assert.equal(options.tier, "vip");
-  assert.equal(options.size, "1024x1536");
+  assert.equal(options.size, "1440x2560");
   assert.equal(options.quality, null);
 });
 
-test("generation rejects unsupported explicit high-resolution pixel sizes", () => {
-  assert.throws(
-    () => resolveImageOptions({ model: "gpt-image-2-max", size: "2160x3840" }, { operation: "generate" }),
-    /Unsupported generation size/,
+test("standard generation maps portrait ratios to documented 1K presets", () => {
+  const options = resolveImageOptions({ size: "9:16" }, { operation: "generate" });
+  assert.equal(options.model, "gpt-image-2");
+  assert.equal(options.tier, "standard");
+  assert.equal(options.size, "720x1280");
+});
+
+test("VIP generation maps standard create sizes to observed max 2K presets", () => {
+  const options = resolveImageOptions(
+    { model: "gpt-image-2-max", size: "1024x1536" },
+    { operation: "generate" },
   );
+  assert.equal(options.size, "1664x2496");
+});
+
+test("VIP generation accepts documented aifast max 4K pixel sizes", () => {
+  const options = resolveImageOptions(
+    { model: "gpt-image-2-max", size: "2160x3840" },
+    { operation: "generate" },
+  );
+  assert.equal(options.model, "gpt-image-2-max");
+  assert.equal(options.size, "2160x3840");
 });
 
 test("standard profile rejects VIP-only parameters", () => {
@@ -592,7 +609,7 @@ test("VIP generation uses max model but omits unsupported quality", async () => 
         ),
     );
     assert.equal(body.model, "gpt-image-2-max");
-    assert.equal(body.size, "1024x1536");
+    assert.equal(body.size, "1440x2560");
     assert.equal("quality" in body, false);
     assert.equal("response_format" in body, false);
   } finally {
