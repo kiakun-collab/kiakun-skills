@@ -32,9 +32,9 @@ Required input (choose one):
 
 Routing and image parameters:
   --profile <name>         auto | standard | vip (hd is a vip compatibility alias)
-  --model <name>           Explicit gpt-image-2 or gpt-image-2-vip override
-  --size <preset>          Listed output preset or ratio; not an arbitrary exact resolution
-  --quality <level>        VIP only: auto | low | medium | high
+  --model <name>           Explicit gpt-image-2 or gpt-image-2-max override
+  --size <preset>          auto, 1024x1024, 1536x1024, 1024x1536, or a ratio mapped to these
+  --quality <level>        Route hint only for generation; selects gpt-image-2-max, not an API field
   --n <count>              Number of images, 1-10 (default: 1)
 
 Output:
@@ -47,7 +47,7 @@ Output:
 
 Cost-aware examples:
   node scripts/generate.js --prompt "A cat by a window"
-  node scripts/generate.js --profile vip --size 3840x2160 --promptfile poster.md`);
+  node scripts/generate.js --model gpt-image-2-max --size 9:16 --promptfile poster.md`);
 }
 
 function parseArgs(argv) {
@@ -86,7 +86,7 @@ async function run() {
 
   await loadAmbientEnv();
   const prompt = await readPromptInput(config.prompt, config.promptFile);
-  const options = resolveImageOptions(config);
+  const options = resolveImageOptions(config, { operation: "generate" });
   if (options.tier === "atlas") {
     throw new Error("AtlasCloud fallback uses an edit-only model and requires at least one reference image; use edit.js.");
   }
@@ -105,7 +105,6 @@ async function run() {
       buildApiPayload(options, {
         prompt,
         n: remaining,
-        ...(options.tier === "vip" ? {} : { response_format: "b64_json" }),
       }),
     );
     const batch = await extractGeneratedImages(response);

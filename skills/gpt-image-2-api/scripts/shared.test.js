@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   buildAtlasEditPayload,
+  buildDefaultImagePath,
   imageMetadata,
   readPromptInput,
   resolveImageOptions,
@@ -95,7 +96,7 @@ test("rejects image counts above the paid-request safety limit", () => {
 
 test("auto selects VIP for a quality request", () => {
   const options = resolveImageOptions({ size: "3840x2160", quality: "high" });
-  assert.equal(options.model, "gpt-image-2-vip");
+  assert.equal(options.model, "gpt-image-2-max");
   assert.equal(options.tier, "vip");
   assert.deepEqual(options.routeReasons, [
     "quality-control-requested",
@@ -105,9 +106,35 @@ test("auto selects VIP for a quality request", () => {
 
 test("auto selects VIP for multiple reference images", () => {
   const options = resolveImageOptions({}, { referenceCount: 2 });
-  assert.equal(options.model, "gpt-image-2-vip");
+  assert.equal(options.model, "gpt-image-2-max");
   assert.equal(options.size, "2048x2048");
   assert.deepEqual(options.routeReasons, ["multiple-reference-images"]);
+});
+
+test("VIP accepts ratio size tokens for max model", () => {
+  const options = resolveImageOptions({ model: "gpt-image-2-max", size: "9:16", quality: "high" });
+  assert.equal(options.model, "gpt-image-2-max");
+  assert.equal(options.tier, "vip");
+  assert.equal(options.size, "9:16");
+  assert.equal(options.quality, "high");
+});
+
+test("generation maps ratio tokens to create-endpoint sizes and omits quality", () => {
+  const options = resolveImageOptions(
+    { model: "gpt-image-2-max", size: "9:16", quality: "high" },
+    { operation: "generate" },
+  );
+  assert.equal(options.model, "gpt-image-2-max");
+  assert.equal(options.tier, "vip");
+  assert.equal(options.size, "1024x1536");
+  assert.equal(options.quality, null);
+});
+
+test("generation rejects unsupported explicit high-resolution pixel sizes", () => {
+  assert.throws(
+    () => resolveImageOptions({ model: "gpt-image-2-max", size: "2160x3840" }, { operation: "generate" }),
+    /Unsupported generation size/,
+  );
 });
 
 test("standard profile rejects VIP-only parameters", () => {
@@ -169,6 +196,12 @@ test("conflicting explicit profile and model are rejected", () => {
   );
 });
 
+test("retired gpt-image-2-vip model id maps to gpt-image-2-max", () => {
+  const options = resolveImageOptions({ model: "gpt-image-2-vip" });
+  assert.equal(options.model, "gpt-image-2-max");
+  assert.equal(options.tier, "vip");
+});
+
 test("reads PNG metadata for saved output verification", () => {
   assert.deepEqual(imageMetadata(PNG), {
     format: "png",
@@ -176,6 +209,12 @@ test("reads PNG metadata for saved output verification", () => {
     height: 1,
     bytes: PNG.length,
   });
+});
+
+test("default image paths are unique within the same process", () => {
+  const first = buildDefaultImagePath("generate", "same prompt");
+  const second = buildDefaultImagePath("generate", "same prompt");
+  assert.notEqual(first, second);
 });
 
 test("requires exactly one prompt source", async () => {
@@ -208,6 +247,48 @@ test("dry-run explains routing without an API key", async () => {
     assert.deepEqual(plan.routeReasons, ["cost-saving-default"]);
   } finally {
     await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("check-config loads env from the skill root when run from another cwd", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "skill-root-env-cwd-"));
+  const skillRoot = await mkdtemp(path.join(tmpdir(), "skill-root-env-skill-"));
+  try {
+    await mkdir(path.join(skillRoot, "scripts"), { recursive: true });
+    await cp(SCRIPT_DIR, path.join(skillRoot, "scripts"), { recursive: true });
+    await writeFile(
+      path.join(skillRoot, ".env"),
+      "OPENAI_API_KEY=skill-root-test-key\nOPENAI_BASE_URL=https://example.test/v1\n",
+    );
+    const { stdout } = await new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [path.join(skillRoot, "scripts", "check-config.js"), "--json"], {
+        cwd,
+        env: {
+          ...process.env,
+          OPENAI_API_KEY: "",
+          OPENAI_BASE_URL: "",
+          HOME: cwd,
+          USERPROFILE: cwd,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk) => (stdout += chunk));
+      child.stderr.on("data", (chunk) => (stderr += chunk));
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code === 0) resolve({ stdout, stderr });
+        else reject(new Error(`Process exited ${code}: ${stderr || stdout}`));
+      });
+    });
+    const config = JSON.parse(stdout);
+    assert.equal(config.ready, true);
+    assert.equal(config.hasApiKey, true);
+    assert.equal(config.baseUrl, "https://example.test/v1");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+    await rm(skillRoot, { recursive: true, force: true });
   }
 });
 
@@ -251,7 +332,7 @@ test("standard generation omits quality and saves every image", async () => {
     assert.equal(body.model, "gpt-image-2");
     assert.equal(body.size, "1024x1024");
     assert.equal("quality" in body, false);
-    assert.equal(body.response_format, "b64_json");
+    assert.equal("response_format" in body, false);
     assert.deepEqual(await readFile(path.join(cwd, "result-1.png")), PNG);
     assert.deepEqual(await readFile(path.join(cwd, "result-2.png")), PNG);
   } finally {
@@ -341,6 +422,104 @@ test("generation retries 429 and then succeeds", async () => {
   }
 });
 
+test("generated image URL downloads retry 5xx and then save", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "generated-download-retry-"));
+  let imageRequests = 0;
+  try {
+    await withGateway(
+      async (request, response) => {
+        if (request.method === "GET" && request.url === "/result.png") {
+          imageRequests += 1;
+          if (imageRequests === 1) {
+            response.writeHead(500, { "content-type": "text/plain" });
+            response.end("temporary image host failure");
+            return;
+          }
+          response.writeHead(200, { "content-type": "image/png" });
+          response.end(PNG);
+          return;
+        }
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            data: [{ url: `http://127.0.0.1:${request.socket.localPort}/result.png` }],
+          }),
+        );
+      },
+      (baseUrl) =>
+        runNode(
+          "generate.js",
+          [
+            "--profile",
+            "vip",
+            "--prompt",
+            "retry downloaded image",
+            "--output",
+            "result.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
+          cwd,
+          { ...testEnv(baseUrl), OPENAI_IMAGE_MAX_RETRIES: "1" },
+        ),
+    );
+    assert.equal(imageRequests, 2);
+    assert.deepEqual(await readFile(path.join(cwd, "result.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("generated image URL downloads do not retry 404", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "generated-download-no-retry-"));
+  let imageRequests = 0;
+  try {
+    await assert.rejects(
+      () =>
+        withGateway(
+          async (request, response) => {
+            if (request.method === "GET" && request.url === "/missing.png") {
+              imageRequests += 1;
+              response.writeHead(404, { "content-type": "text/plain" });
+              response.end("missing");
+              return;
+            }
+            const chunks = [];
+            for await (const chunk of request) chunks.push(chunk);
+            response.writeHead(200, { "content-type": "application/json" });
+            response.end(
+              JSON.stringify({
+                data: [{ url: `http://127.0.0.1:${request.socket.localPort}/missing.png` }],
+              }),
+            );
+          },
+          (baseUrl) =>
+            runNode(
+              "generate.js",
+              [
+                "--profile",
+                "vip",
+                "--prompt",
+                "missing downloaded image",
+                "--output",
+                "result.png",
+                "--prompt-output",
+                "prompt.md",
+              ],
+              cwd,
+              { ...testEnv(baseUrl), OPENAI_IMAGE_MAX_RETRIES: "2" },
+            ),
+        ),
+      /Failed to download generated image \(404\)/,
+    );
+    assert.equal(imageRequests, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("generation does not retry a 400 response", async () => {
   const cwd = await mkdtemp(path.join(tmpdir(), "generation-no-retry-"));
   let requestCount = 0;
@@ -379,7 +558,7 @@ test("generation does not retry a 400 response", async () => {
   }
 });
 
-test("VIP generation sends size and quality", async () => {
+test("VIP generation uses max model but omits unsupported quality", async () => {
   const cwd = await mkdtemp(path.join(tmpdir(), "vip-generate-"));
   let body;
   try {
@@ -400,7 +579,7 @@ test("VIP generation sends size and quality", async () => {
             "--prompt",
             "complex infographic",
             "--size",
-            "2560x1440",
+            "9:16",
             "--quality",
             "high",
             "--output",
@@ -412,9 +591,9 @@ test("VIP generation sends size and quality", async () => {
           testEnv(baseUrl),
         ),
     );
-    assert.equal(body.model, "gpt-image-2-vip");
-    assert.equal(body.size, "2560x1440");
-    assert.equal(body.quality, "high");
+    assert.equal(body.model, "gpt-image-2-max");
+    assert.equal(body.size, "1024x1536");
+    assert.equal("quality" in body, false);
     assert.equal("response_format" in body, false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -502,6 +681,59 @@ test("URL-reference edit downloads the image and uploads multipart", async () =>
   }
 });
 
+test("multi-URL reference edit downloads in parallel but preserves multipart order", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "multi-url-edit-order-"));
+  let multipart = "";
+  try {
+    await withGateway(
+      async (request, response) => {
+        if (request.method === "GET" && request.url === "/first.png") {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          response.writeHead(200, { "content-type": "image/png" });
+          response.end(PNG);
+          return;
+        }
+        if (request.method === "GET" && request.url === "/second.png") {
+          response.writeHead(200, { "content-type": "image/png" });
+          response.end(PNG);
+          return;
+        }
+        assert.equal(request.method, "POST");
+        assert.equal(request.url, "/v1/images/edits");
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        multipart = Buffer.concat(chunks).toString("latin1");
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      (baseUrl) =>
+        runNode(
+          "edit.js",
+          [
+            "--url",
+            `${baseUrl}/first.png`,
+            "--url",
+            `${baseUrl}/second.png`,
+            "--prompt",
+            "combine remote references",
+            "--output",
+            "edited.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
+          cwd,
+          testEnv(baseUrl),
+        ),
+    );
+    assert.ok(
+      multipart.indexOf('filename="first.png"') < multipart.indexOf('filename="second.png"'),
+    );
+    assert.match(multipart, /name="model"\r\n\r\ngpt-image-2-max/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("multi-reference edit uses VIP first", async () => {
   const cwd = await mkdtemp(path.join(tmpdir(), "vip-edit-"));
   let multipart = "";
@@ -537,7 +769,7 @@ test("multi-reference edit uses VIP first", async () => {
         ),
     );
     assert.equal((multipart.match(/name="image"/g) || []).length, 2);
-    assert.match(multipart, /name="model"\r\n\r\ngpt-image-2-vip/);
+    assert.match(multipart, /name="model"\r\n\r\ngpt-image-2-max/);
     assert.match(multipart, /name="quality"\r\n\r\nhigh/);
     assert.deepEqual(await readFile(path.join(cwd, "edited.png")), PNG);
   } finally {
@@ -622,6 +854,128 @@ test("VIP edit falls back to AtlasCloud after upstream failure", async () => {
     assert.equal(atlasSubmitted.images.length, 2);
     assert.match(atlasSubmitted.images[0], /^data:image\/png;base64,/);
     assert.deepEqual(await readFile(path.join(cwd, "edited.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("batch promptlist dry-run routes every non-empty line", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "batch-promptlist-"));
+  try {
+    await writeFile(
+      path.join(cwd, "prompts.txt"),
+      "a red fox in snow\n# a comment line\n\na blue whale at dusk\n",
+    );
+    const { stdout } = await runNode(
+      "batch.js",
+      ["--promptlist", "prompts.txt", "--dry-run", "--json"],
+      cwd,
+      { OPENAI_API_KEY: "", GPT_IMAGE_PROFILE: "auto", HOME: cwd, USERPROFILE: cwd },
+    );
+    const summary = JSON.parse(stdout);
+    assert.equal(summary.total, 2);
+    assert.equal(summary.succeeded, 2);
+    assert.equal(summary.results[0].operation, "generate");
+    assert.equal(summary.results[0].result.model, "gpt-image-2");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("batch manifest runs mixed generate and edit tasks", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "batch-manifest-"));
+  const seen = [];
+  try {
+    await writeFile(path.join(cwd, "one.png"), PNG);
+    await writeFile(
+      path.join(cwd, "tasks.json"),
+      JSON.stringify([
+        { prompt: "text image", output: "gen.png" },
+        { prompt: "edit it", images: ["one.png"], output: "edited.png" },
+      ]),
+    );
+    await withGateway(
+      async (request, response) => {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        seen.push(request.url);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      async (baseUrl) => {
+        const { stdout } = await runNode(
+          "batch.js",
+          ["--batch", "tasks.json", "--concurrency", "1", "--json"],
+          cwd,
+          testEnv(baseUrl),
+        );
+        const summary = JSON.parse(stdout);
+        assert.equal(summary.total, 2);
+        assert.equal(summary.succeeded, 2);
+        assert.equal(summary.failed, 0);
+      },
+    );
+    assert.ok(seen.includes("/v1/images/generations"));
+    assert.ok(seen.includes("/v1/images/edits"));
+    assert.deepEqual(await readFile(path.join(cwd, "gen.png")), PNG);
+    assert.deepEqual(await readFile(path.join(cwd, "edited.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("batch continues past a failed task and reports it", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "batch-continue-"));
+  try {
+    await writeFile(
+      path.join(cwd, "tasks.json"),
+      JSON.stringify([
+        { prompt: "ok image", output: "ok.png" },
+        { prompt: "broken edit", images: ["missing.png"], output: "bad.png" },
+      ]),
+    );
+    await withGateway(
+      async (request, response) => {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      async (baseUrl) => {
+        const { stdout } = await runNode(
+          "batch.js",
+          ["--batch", "tasks.json", "--concurrency", "1", "--json"],
+          cwd,
+          testEnv(baseUrl),
+        );
+        const summary = JSON.parse(stdout);
+        assert.equal(summary.total, 2);
+        assert.equal(summary.succeeded, 1);
+        assert.equal(summary.failed, 1);
+        const failure = summary.results.find((r) => !r.ok);
+        assert.match(failure.error, /not found/);
+      },
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("batch rejects providing both inputs", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "batch-both-"));
+  try {
+    await writeFile(path.join(cwd, "prompts.txt"), "one\n");
+    await writeFile(path.join(cwd, "tasks.json"), "[]");
+    await assert.rejects(
+      () =>
+        runNode(
+          "batch.js",
+          ["--promptlist", "prompts.txt", "--batch", "tasks.json"],
+          cwd,
+          { OPENAI_API_KEY: "", HOME: cwd, USERPROFILE: cwd },
+        ),
+      /exactly one input/,
+    );
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

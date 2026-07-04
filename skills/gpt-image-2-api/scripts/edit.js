@@ -46,7 +46,7 @@ Required prompt input (choose one):
 
 Routing and image parameters:
   --profile <name>         auto | standard | vip | atlas (hd is a vip compatibility alias)
-  --model <name>           Explicit gpt-image-2, gpt-image-2-vip, or openai/gpt-image-2/edit
+  --model <name>           Explicit gpt-image-2, gpt-image-2-max, or openai/gpt-image-2/edit
   --size <preset>          Listed output preset
   --quality <level>        VIP/Atlas only: auto | low | medium | high
 
@@ -58,7 +58,7 @@ Output:
   -h, --help               Show help
 
 Routing rule:
-  One reference defaults to gpt-image-2. Multiple references or quality control use gpt-image-2-vip.
+  One reference defaults to gpt-image-2. Multiple references or quality control use gpt-image-2-max.
   VIP failures fall back to AtlasCloud when ATLASCLOUD_API_KEY is configured.`);
 }
 
@@ -107,8 +107,8 @@ async function requestEdit(config, prompt, options, endpoint) {
       );
     }
   } else {
-    for (const rawUrl of config.urls) {
-      const reference = await downloadReferenceImage(rawUrl);
+    const references = await Promise.all(config.urls.map((rawUrl) => downloadReferenceImage(rawUrl)));
+    for (const reference of references) {
       form.append(
         "image",
         new Blob([reference.bytes], { type: reference.contentType }),

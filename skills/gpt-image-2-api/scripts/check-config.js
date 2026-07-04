@@ -26,6 +26,13 @@ const result = {
   baseUrl: buildBaseUrl(),
   atlasBaseUrl: buildAtlasBaseUrl(),
   defaultProfile: process.env.GPT_IMAGE_PROFILE || "auto",
+  generation: {
+    size: process.env.GPT_IMAGE_GENERATION_SIZE ||
+      process.env.GPT_IMAGE_STANDARD_SIZE ||
+      DEFAULT_STANDARD_SIZE,
+    quality: null,
+    note: "create endpoint omits quality and supports auto/1024x1024/1536x1024/1024x1536",
+  },
   standard: {
     model: STANDARD_MODEL,
     size: process.env.GPT_IMAGE_STANDARD_SIZE || DEFAULT_STANDARD_SIZE,
@@ -67,6 +74,7 @@ else {
   console.log(`baseUrl        : ${result.baseUrl}`);
   console.log(`atlasBaseUrl   : ${result.atlasBaseUrl}`);
   console.log(`defaultProfile : ${result.defaultProfile}`);
+  console.log(`generation     : ${result.generation.size} / quality omitted`);
   console.log(`standard       : ${result.standard.model} / ${result.standard.size}`);
   console.log(`vip            : ${result.vip.model} / ${result.vip.size} / ${result.vip.quality}`);
   console.log(
