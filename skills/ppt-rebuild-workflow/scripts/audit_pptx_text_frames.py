@@ -13,10 +13,9 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree as ET
 
-NS = {
-    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
-    "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
-}
+from _io_common import write_json
+from _pptx_common import NS, group_transform, shape_name, slide_sort_key
+
 REL_NS = {"rel": "http://schemas.openxmlformats.org/package/2006/relationships"}
 SLIDE_LAYOUT_REL = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
@@ -121,14 +120,6 @@ def expand_thin_frame(frame: dict[str, float], minimum: float) -> dict[str, floa
     return result
 
 
-def shape_name(shape: ET.Element) -> str:
-    if shape.tag.endswith("cxnSp"):
-        node = shape.find("./p:nvCxnSpPr/p:cNvPr", NS)
-    else:
-        node = shape.find("./p:nvSpPr/p:cNvPr", NS)
-    return node.attrib.get("name", "") if node is not None else ""
-
-
 def placeholder_key(shape: ET.Element) -> tuple[str, str] | None:
     placeholder = shape.find("./p:nvSpPr/p:nvPr/p:ph", NS)
     if placeholder is None:
@@ -207,11 +198,6 @@ def overlap(a: dict[str, float], b: dict[str, float]) -> dict[str, float] | None
     return {"x": left, "y": top, "w": right - left, "h": bottom - top}
 
 
-def slide_sort_key(name: str) -> int:
-    match = re.search(r"slide(\d+)\.xml$", name)
-    return int(match.group(1)) if match else 0
-
-
 def frame_px(frame: dict[str, float], slide_w: int, slide_h: int) -> dict[str, float]:
     return {
         "x": round(frame["x"] / slide_w * 1280, 2),
@@ -219,41 +205,6 @@ def frame_px(frame: dict[str, float], slide_w: int, slide_h: int) -> dict[str, f
         "w": round(frame["w"] / slide_w * 1280, 2),
         "h": round(frame["h"] / slide_h * 720, 2),
     }
-
-
-def group_transform(
-    group: ET.Element,
-    parent: tuple[float, float, float, float],
-) -> tuple[tuple[float, float, float, float] | None, str | None]:
-    xfrm = group.find("./p:grpSpPr/a:xfrm", NS)
-    if xfrm is None:
-        return None, "group has no transform"
-    if int(xfrm.attrib.get("rot", "0")):
-        return None, "rotated group transform is not resolved"
-    off = xfrm.find("./a:off", NS)
-    ext = xfrm.find("./a:ext", NS)
-    child_off = xfrm.find("./a:chOff", NS)
-    child_ext = xfrm.find("./a:chExt", NS)
-    if None in (off, ext, child_off, child_ext):
-        return None, "group transform is incomplete"
-    child_w = float(child_ext.attrib.get("cx", "0"))
-    child_h = float(child_ext.attrib.get("cy", "0"))
-    if child_w == 0 or child_h == 0:
-        return None, "group child extent is zero"
-    local_sx = float(ext.attrib.get("cx", "0")) / child_w
-    local_sy = float(ext.attrib.get("cy", "0")) / child_h
-    local_tx = float(off.attrib.get("x", "0")) - float(child_off.attrib.get("x", "0")) * local_sx
-    local_ty = float(off.attrib.get("y", "0")) - float(child_off.attrib.get("y", "0")) * local_sy
-    parent_sx, parent_sy, parent_tx, parent_ty = parent
-    return (
-        (
-            parent_sx * local_sx,
-            parent_sy * local_sy,
-            parent_tx + parent_sx * local_tx,
-            parent_ty + parent_sy * local_ty,
-        ),
-        None,
-    )
 
 
 def collect_slide_shapes(
@@ -558,12 +509,7 @@ def main() -> int:
     except (OSError, ValueError, KeyError, zipfile.BadZipFile, ET.ParseError) as exc:
         print(f"PPTX text-frame audit failed: {exc}", file=sys.stderr)
         return 2
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(result, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    write_json(Path(args.output), result)
     print(json.dumps(result["totals"], ensure_ascii=False))
     return 0
 

@@ -15,7 +15,7 @@ description: Use when rebuilding slide screenshots, image-only PPTX files, AI-ge
 - 文字优先使用 PPT 文本框；结构元素优先使用 PPT 原生形状；复杂低置信形状默认 `baked-asset` 或 Mode B fallback。
 - 除 Mode A 外，整页参考图只允许在临时校准或 QA 产物中出现，不得嵌入最终可编辑稿。
 - `target_font` 未指定时自动建立并渲染比较 `fontCandidateSet`，不要默认阻塞等待人工选字体。
-- 默认坐标系为 1280 x 720。非 16:9 任务必须先确认扩展坐标规则或接受降级，不能擅自声明仅支持 16:9。
+- 默认坐标系为 1280 x 720（16:9），本 skill 的可编辑坐标系只覆盖 16:9。非 16:9 输入按明确降级路径处理，不提供扩展坐标规范：(1) 走 Mode A 整页图，或 (2) 经用户确认后按等比映射进 1280 x 720 画布（留黑边或裁切由用户选）。不得在无降级确认时擅自继续分层重构。
 - 构建细则、最终报告字段和常见反例按需加载 [implementation-guardrails.md](references/implementation-guardrails.md)。
 
 ## 始终防错
@@ -65,7 +65,7 @@ description: Use when rebuilding slide screenshots, image-only PPTX files, AI-ge
 | Mode D 先重做参考图 | 参考图语义或版式错误时先生成候选参考图 | [mode-d-workflow.md](references/mode-d-workflow.md) |
 | Mode E 用户修改稿增量修正 | 只替换目标对象，保留用户当前文件内容 | [incremental-edit-workflow.md](references/incremental-edit-workflow.md) |
 
-通用运行时边界读 [runtime-integration.md](references/runtime-integration.md)。Mode B/C 构建细则读 [implementation-guardrails.md](references/implementation-guardrails.md)。QA 读 [qa-standards.md](references/qa-standards.md)、[visual-overlap-qa.md](references/visual-overlap-qa.md) 和 [visual-fidelity-qa.md](references/visual-fidelity-qa.md)；复杂渐隐另读 [visual-transition-strategy.md](references/visual-transition-strategy.md)。
+按需条件加载，避免一次性拉入全部散文:仅当 `presentations:Presentations` runtime 激活时读 [runtime-integration.md](references/runtime-integration.md);仅 Mode B/C 构建阶段读 [implementation-guardrails.md](references/implementation-guardrails.md);进入 QA 时读 [qa-standards.md](references/qa-standards.md)、[visual-overlap-qa.md](references/visual-overlap-qa.md) 和 [visual-fidelity-qa.md](references/visual-fidelity-qa.md);仅当页面存在复杂渐隐/边缘融合时读 [visual-transition-strategy.md](references/visual-transition-strategy.md);仅当参考图为 AI 生成或图片源、需恢复错字乱码时读 [text-recovery.md](references/text-recovery.md)。
 
 ## 推荐流程
 
@@ -98,7 +98,7 @@ Mode C Level 3 交付前逐项完成 [level-3-delivery-checklist.md](assets/temp
 
 ## QA 必做项
 
-按 [qa-standards.md](references/qa-standards.md) 执行。最终报告字段和常见失败反例见 [implementation-guardrails.md](references/implementation-guardrails.md)。
+坐标锁、视觉双门禁、禁裁剪猜字三组规则的单一事实源见 [qa-gates.md](references/qa-gates.md)。完整执行按 [qa-standards.md](references/qa-standards.md)；最终报告字段和常见失败反例见 [implementation-guardrails.md](references/implementation-guardrails.md)。
 
 ## 模板
 
@@ -127,6 +127,7 @@ Mode C Level 3 交付前逐项完成 [level-3-delivery-checklist.md](assets/temp
 - `scripts/score_typography_candidates.py`：测量候选渲染图并自动选择文字参数。
 - `scripts/make_reference_render_comparison.py`：参考图与渲染图配对对照。
 - `scripts/validate_rebuild_evidence.py`：迁移旧字段并验证产物引用、计算证据和 QA 门禁。
+- `scripts/run_pipeline.py`：顶层驱动器，按顺序 subprocess 串联上述脚本并聚合 `pipeline-report.json`（`--steps` 子集、`--stop-on-fail`、缺输入步骤自动跳过）。
 
 命令、参数和输出字段统一见 [script-output-contracts.md](references/script-output-contracts.md)；修改脚本输出时必须同步更新该契约和 QA 模板。
 

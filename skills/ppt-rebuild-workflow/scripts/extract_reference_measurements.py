@@ -4,17 +4,20 @@
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import os
-import re
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageStat
+    from PIL import Image, ImageDraw, ImageStat, UnidentifiedImageError
 except ImportError as exc:  # pragma: no cover - exercised only without Pillow
     raise SystemExit("Pillow is required: install it with `python -m pip install Pillow`.") from exc
+
+# Per-image failures we tolerate (bad/corrupt/oversized inputs); anything else
+# (e.g. a KeyError from a refactor) must propagate instead of being masked (P2-3).
+IMAGE_FAILURE_ERRORS = (OSError, ValueError, UnidentifiedImageError)
 
 try:  # Optional fast path.
     import numpy as np
@@ -31,8 +34,14 @@ try:  # Optional contour/rectangle detector.
 except ImportError:  # pragma: no cover - environment dependent
     cv2 = None
 
-
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+from _image_common import (
+    IMAGE_EXTENSIONS,
+    edge_binary,
+    load_image_rgb,
+    load_overlay_font,
+    natural_key,
+)
+from _io_common import make_stdout_robust, write_json
 
 
 def measurement_engine() -> str:
@@ -46,13 +55,6 @@ def measurement_engine() -> str:
     if np is not None and scipy_ndimage is not None:
         return "numpy-scipy"
     return "python"
-
-
-def natural_key(path: Path) -> list[object]:
-    return [
-        int(part) if part.isdigit() else part.lower()
-        for part in re.split(r"(\d+)", path.name)
-    ]
 
 
 def image_files(path: Path) -> list[Path]:
@@ -69,19 +71,6 @@ def image_files(path: Path) -> list[Path]:
             key=natural_key,
         )
     return []
-
-
-def percentile_from_histogram(histogram: list[int], percentile: float) -> int:
-    total = sum(histogram)
-    if total <= 0:
-        return 0
-    cutoff = total * percentile
-    running = 0
-    for value, count in enumerate(histogram):
-        running += count
-        if running >= cutoff:
-            return value
-    return len(histogram) - 1
 
 
 def bbox_dict(min_x: int, min_y: int, max_x: int, max_y: int) -> dict[str, int]:
@@ -197,14 +186,7 @@ def connected_components(
 
 
 def edge_mask(image: Image.Image) -> tuple[bytearray, int]:
-    gray = image.convert("L")
-    edges = gray.filter(ImageFilter.FIND_EDGES)
-    threshold = max(24, percentile_from_histogram(edges.histogram(), 0.90))
-    raw = edges.tobytes()
-    if measurement_engine() != "python" and np is not None:
-        array = np.frombuffer(raw, dtype=np.uint8)
-        return bytearray((array >= threshold).astype(np.uint8).tobytes()), threshold
-    return bytearray(1 if value >= threshold else 0 for value in raw), threshold
+    return edge_binary(image, use_numpy=measurement_engine() != "python")
 
 
 def dominant_colors(image: Image.Image, count: int = 8) -> list[dict]:
@@ -603,7 +585,7 @@ def draw_candidates(
 ) -> None:
     canvas = image.convert("RGB")
     draw = ImageDraw.Draw(canvas, "RGBA")
-    font = ImageFont.load_default()
+    font = load_overlay_font()
 
     def rectangle(item: dict, color: tuple[int, int, int, int], label: str) -> None:
         bbox = item["bbox"]
@@ -706,15 +688,14 @@ def analyze_image(
     auto_anchor_limit: int,
     fit_mode: str,
 ) -> dict:
-    with Image.open(path) as source:
-        original = source.convert("RGB")
-        original_size = original.size
-        image, transform, warnings = fit_reference_image(
-            original,
-            target_width,
-            target_height,
-            fit_mode,
-        )
+    original = load_image_rgb(path)
+    original_size = original.size
+    image, transform, warnings = fit_reference_image(
+        original,
+        target_width,
+        target_height,
+        fit_mode,
+    )
 
     mask, threshold = edge_mask(image)
     components = connected_components(mask, target_width, target_height, min_component_area)
@@ -789,6 +770,25 @@ def analyze_image(
     }
 
 
+def print_engine_doctor() -> None:
+    """Report the selected measurement engine and dependency availability (P3-2)."""
+    engine = measurement_engine()
+    forced = os.environ.get("PPT_REBUILD_MEASUREMENT_ENGINE", "").strip() or "(unset)"
+    print(f"measurement engine: {engine}")
+    print(f"  PPT_REBUILD_MEASUREMENT_ENGINE={forced}")
+    print(f"  numpy:          {'available' if np is not None else 'MISSING'}")
+    print(f"  scipy.ndimage:  {'available' if scipy_ndimage is not None else 'MISSING'}")
+    print(f"  opencv (cv2):   {'available' if cv2 is not None else 'MISSING'}")
+    if engine == "python":
+        print(
+            "WARNING: pure-Python fallback — connected components and edge binarization "
+            "run without numpy; large batches will be slow."
+        )
+        print("  Install the [fast] extra (numpy/scipy/opencv) for the accelerated path.")
+    else:
+        print("OK: accelerated engine selected.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -796,8 +796,8 @@ def main() -> int:
             "reference images. Results must be reviewed before PPT construction."
         )
     )
-    parser.add_argument("input", help="Reference image file or directory")
-    parser.add_argument("--output", required=True, help="JSON output path")
+    parser.add_argument("input", nargs="?", help="Reference image file or directory")
+    parser.add_argument("--output", help="JSON output path")
     parser.add_argument("--annotated-dir", help="Directory for annotated images")
     parser.add_argument("--target-width", type=int, default=1280)
     parser.add_argument("--target-height", type=int, default=720)
@@ -809,7 +809,34 @@ def main() -> int:
     parser.add_argument("--min-component-area", type=int, default=8)
     parser.add_argument("--max-candidates", type=int, default=40)
     parser.add_argument("--auto-anchor-limit", type=int, default=12)
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        help=(
+            "Worker processes for per-page analysis; 0 (default) uses "
+            "min(cpu_count, page_count). Use 1 to force serial (debugging)."
+        ),
+    )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Print measurement-engine and dependency diagnosis, then exit.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print per-page progress to stderr (stdout still prints only the output path).",
+    )
     args = parser.parse_args()
+
+    if args.doctor:
+        print_engine_doctor()
+        return 0
+    if not args.input:
+        parser.error("input is required")
+    if not args.output:
+        parser.error("--output is required")
 
     if args.target_width <= 0 or args.target_height <= 0:
         parser.error("--target-width and --target-height must be positive")
@@ -831,26 +858,61 @@ def main() -> int:
     )
     annotated_dir.mkdir(parents=True, exist_ok=True)
 
-    pages = []
+    analyze_kwargs = dict(
+        annotated_dir=annotated_dir,
+        target_width=args.target_width,
+        target_height=args.target_height,
+        min_component_area=args.min_component_area,
+        max_candidates=args.max_candidates,
+        auto_anchor_limit=args.auto_anchor_limit,
+        fit_mode=args.fit_mode,
+    )
+    worker_count = args.jobs if args.jobs > 0 else (os.cpu_count() or 1)
+    worker_count = max(1, min(worker_count, len(files)))
+
+    indexed_files = list(enumerate(files, start=1))
+    results_by_index: dict[int, dict] = {}
     failed_pages = []
-    for index, path in enumerate(files, start=1):
-        try:
-            pages.append(
-                analyze_image(
-                    path,
-                    page_number=index,
-                    annotated_dir=annotated_dir,
-                    target_width=args.target_width,
-                    target_height=args.target_height,
-                    min_component_area=args.min_component_area,
-                    max_candidates=args.max_candidates,
-                    auto_anchor_limit=args.auto_anchor_limit,
-                    fit_mode=args.fit_mode,
+
+    def record_failure(index: int, path: Path, exc: BaseException) -> None:
+        failed_pages.append({"page": index, "image": str(path), "error": str(exc)})
+        print(f"warning: failed to analyze {path}: {exc}", file=sys.stderr)
+
+    total = len(indexed_files)
+    if worker_count == 1:
+        for index, path in indexed_files:
+            if args.verbose:
+                print(f"page {index}/{total} ({path.name})", file=sys.stderr)
+            try:
+                results_by_index[index] = analyze_image(
+                    path, page_number=index, **analyze_kwargs
                 )
-            )
-        except Exception as exc:  # Continue the batch and report the failed image.
-            failed_pages.append({"page": index, "image": str(path), "error": str(exc)})
-            print(f"warning: failed to analyze {path}: {exc}", file=sys.stderr)
+            except IMAGE_FAILURE_ERRORS as exc:  # Continue the batch; report the failed image.
+                record_failure(index, path, exc)
+    else:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            future_to_item = {
+                executor.submit(analyze_image, path, page_number=index, **analyze_kwargs): (
+                    index,
+                    path,
+                )
+                for index, path in indexed_files
+            }
+            completed = 0
+            for future in as_completed(future_to_item):
+                index, path = future_to_item[future]
+                if args.verbose:
+                    completed += 1
+                    print(f"page {completed}/{total} done ({path.name})", file=sys.stderr)
+                try:
+                    results_by_index[index] = future.result()
+                except IMAGE_FAILURE_ERRORS as exc:  # Continue the batch; report the failed image.
+                    record_failure(index, path, exc)
+
+    # Reassemble deterministically by page index so the output is identical to the
+    # serial run regardless of worker completion order.
+    pages = [results_by_index[index] for index in sorted(results_by_index)]
+    failed_pages.sort(key=lambda item: item["page"])
 
     result = {
         "settings": {
@@ -870,11 +932,8 @@ def main() -> int:
         "pages": pages,
         "failedPages": failed_pages,
     }
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(result, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    write_json(output_path, result)
+    make_stdout_robust()
     print(output_path)
     return 0 if pages else 2
 

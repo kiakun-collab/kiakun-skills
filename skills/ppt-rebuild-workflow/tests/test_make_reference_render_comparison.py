@@ -25,6 +25,7 @@ def run_comparison(
     reference_dir: Path,
     render_dir: Path,
     output: Path,
+    extra_args: list[str] | None = None,
 ) -> subprocess.CompletedProcess:
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -35,6 +36,7 @@ def run_comparison(
             str(reference_dir),
             str(render_dir),
             str(output),
+            *(extra_args or []),
         ],
         capture_output=True,
         text=True,
@@ -100,6 +102,35 @@ class MakeReferenceRenderComparisonTests(unittest.TestCase):
         self.assertEqual([item["page"] for item in manifest["pairings"]], [1, 2])
         self.assertEqual(manifest["pairings"][0]["reference"], "page-01.png")
         self.assertEqual(manifest["pairings"][0]["render"], "slide-01.png")
+
+
+    def test_allow_missing_renders_placeholder_and_tags_status(self) -> None:
+        # P2-5: --allow-missing degrades a missing render page to a placeholder
+        # cell and tags that pairing status="missing" instead of hard-failing.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            references = root / "references"
+            renders = root / "renders"
+            references.mkdir()
+            renders.mkdir()
+            write_image(references / "page-01.png")
+            write_image(references / "page-02.png")
+            write_image(renders / "page-02.png")  # page 1 render is missing
+            output = root / "comparison.png"
+
+            result = run_comparison(references, renders, output, ["--allow-missing"])
+            manifest_path = root / "comparison.pairing.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            output_exists = output.exists()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(output_exists)
+        by_page = {item["page"]: item for item in manifest["pairings"]}
+        self.assertEqual([1, 2], sorted(by_page))
+        self.assertEqual(by_page[1]["status"], "missing")
+        self.assertIsNone(by_page[1]["render"])
+        self.assertEqual(by_page[2]["status"], "matched")
+        self.assertEqual(by_page[2]["render"], "page-02.png")
 
 
 if __name__ == "__main__":

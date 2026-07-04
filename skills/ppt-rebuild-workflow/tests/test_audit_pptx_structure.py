@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -98,6 +99,30 @@ class AuditPptxStructureTests(unittest.TestCase):
             )
 
         self.assertEqual(completed.returncode, 0, completed.stderr.decode("gbk"))
+
+    def test_output_prints_compact_summary_unless_print_json(self) -> None:
+        # P3-5: with --output, stdout defaults to a compact summary; --print-json
+        # restores the full JSON, and without --output the full JSON is printed.
+        script = str(SKILL_ROOT / "scripts" / "audit_pptx_structure.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pptx = make_basic_pptx(root / "deck.pptx")
+            base = [sys.executable, script, str(pptx)]
+            summary = subprocess.run(
+                base + ["--output", str(root / "a.json")],
+                capture_output=True, text=True, check=False,
+            )
+            full = subprocess.run(
+                base + ["--output", str(root / "b.json"), "--print-json"],
+                capture_output=True, text=True, check=False,
+            )
+            no_output = subprocess.run(base, capture_output=True, text=True, check=False)
+        self.assertEqual(summary.returncode, 0, summary.stderr)
+        summary_json = json.loads(summary.stdout)
+        self.assertIn("slideCount", summary_json)
+        self.assertNotIn("pages", summary_json)
+        self.assertIn("pages", json.loads(full.stdout))
+        self.assertIn("pages", json.loads(no_output.stdout))
 
     def test_cli_reports_corrupt_pptx_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

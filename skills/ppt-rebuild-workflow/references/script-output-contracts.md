@@ -8,6 +8,8 @@
 python scripts/audit_pptx_structure.py input.pptx --output structure-audit.json
 ```
 
+stdout：无 `--output` 时打印完整 JSON；有 `--output` 时默认只打印紧凑摘要（`slideCount`/`mediaCount`/各计数/`imageOnlyRisk`/`fullSlideImageRiskPages`，完整报告已落盘），`--print-json` 强制打印完整 JSON。
+
 退出码：
 
 - `0`：审计完成。
@@ -40,6 +42,8 @@ python scripts/audit_pptx_structure.py input.pptx --output structure-audit.json
 - `fullSlideImageRiskPages`
 - `wholeReferenceImageEmbedded`
 - `imageOnlyRisk`
+
+`pages[].pictureCoverages` 与 `pages[].maxPictureCoverageRatio` 只落在本脚本的结构审计 JSON（QA 报告经 `auditArtifacts.structureAudit` 引用该文件），无需再复制到 QA 报告顶层字段。
 
 单张图片 frame 覆盖画布 90% 以上时，该页进入 `fullSlideImageRiskPages`。`wholeReferenceImageEmbedded.status` 只能表示自动风险或未检测到风险；覆盖率不能证明图片身份，必须结合参考图、资产策略和最终页面做人工对照。
 
@@ -85,6 +89,14 @@ python scripts/extract_reference_measurements.py reference-dir --output referenc
 - `--min-component-area`：保留边缘连通组件的最小像素数，默认 `8`。
 - `--max-candidates`：每页每类候选最多数量，默认 `40`。
 - `--auto-anchor-limit`：每页自动宏观锚点最大数量，默认 `12`。
+- `--jobs`：逐页分析的并行进程数，默认 `0`（取 `min(cpu_count, 页数)`）；`--jobs 1` 强制串行调试。并行与串行输出逐字节一致。
+- `--doctor`：打印 `measurement_engine()` 选择与 numpy/scipy/cv2 可用性及慢路径警告后退出（不需要 input/output）。
+- `--verbose`：逐页向 stderr 打印进度；stdout 仍只打印最终输出路径。
+
+退出码：
+
+- `0`：至少一页分析成功。
+- `2`：全部页面失败（`pages` 为空，逐图错误进入 `failedPages`）。
 
 输出字段：
 
@@ -115,7 +127,9 @@ python scripts/extract_reference_measurements.py reference-dir --output referenc
 python scripts/calibrate_reference_render.py reference-measurements.json render-dir --output coordinate-calibration.json --overlay-dir calibration-overlays
 ```
 
-脚本对稳定锚点执行局部边缘匹配，优先使用 OpenCV/NumPy，缺失时自动回退；输出 `calibrationEngine`、`anchorMatches[].dx/dy/confidence/offsetPx`、`maxAnchorOffsetPx`、`tolerancePx` 和叠加图。有效匹配不足时为 `INCONCLUSIVE`，偏移超限时为 `FAIL`；只有计算证据完整且全部页面通过时退出码为 `0`。
+可选参数 `--verbose` 仅向 stderr 打印每页 tolerance 推导与 render/page 数量 warning,不改变 stdout 契约。
+
+脚本对稳定锚点执行局部边缘匹配，优先使用 OpenCV/NumPy，缺失时自动回退；输出 `calibrationEngine`、`anchorMatches[].dx/dy/confidence/offsetPx`、`maxAnchorOffsetPx`、`tolerancePx` 和叠加图。有效匹配不足时为 `INCONCLUSIVE`，偏移超限时为 `FAIL`。退出码：`0` 仅当整体 `status == PASS`（计算证据完整且全部页面通过）；其余情况（`FAIL`/`INCONCLUSIVE`）为 `1`；输入读取或解析错误为 `2`。
 
 ## score_typography_candidates.py
 
@@ -123,7 +137,7 @@ python scripts/calibrate_reference_render.py reference-measurements.json render-
 python scripts/score_typography_candidates.py typography-calibration.json --output typography-calibration-scored.json
 ```
 
-每个候选必须包含 `id`、`renderPath` 和 `renderCrop`。脚本测量 `inkBBox`、行数、行间距、基线代理、裁切和 overflow；行数不符或裁切的候选被拒绝，最终输出 `generatedBy`、`status` 和 `selected.candidateId`。
+每个候选必须包含 `id`、`renderPath` 和 `renderCrop`。脚本测量 `inkBBox`、`lineCount`、`lineGapPx`、`baselineProxyPx` 和 `clippingDetected`(裁切);行数不符或裁切的候选被拒绝,最终输出 `generatedBy`、`status`、`failures` 和每项 `selected.candidateId`。退出码:`0` 全部项通过,`1` 存在 `failures`(单个坏 item 记入 failures 不中止整文件),`2` 输入读取或解析错误。
 
 ## validate_rebuild_evidence.py
 
@@ -144,5 +158,6 @@ python scripts/make_reference_render_comparison.py reference-dir render-dir comp
 - `--width`、`--height`：每侧图片尺寸。
 - `--manifest`：当文件名不能可靠提取页码时，传入 `references` 和 `renders` 文件名到页码映射。
 - `--pairing-output`：pairing JSON 路径；默认生成 `comparison.pairing.json`。
+- `--allow-missing`：不因缺失/多余页硬失败，缺失一侧渲染灰格占位，pairing entry 追加 `status`（`matched`/`missing`）。默认(不加此开关)行为不变,pairing entry 不含 `status`。
 
-脚本按页码映射配对，检查无法提取页码、缺失页、重复页和多余页。任一检查失败返回非零，不按排序位置静默配对。成功时生成对照 PNG 和包含实际 `pairings` 的 JSON sidecar。
+脚本按页码映射配对，检查无法提取页码、缺失页、重复页和多余页。任一检查失败返回非零，不按排序位置静默配对(除非 `--allow-missing`)。成功时生成对照 PNG 和包含实际 `pairings` 的 JSON sidecar。页码提取策略与 `calibrate_reference_render.py` 共用 `_image_common.extract_page_number`(label 优先),同一文件名两脚本映射一致。

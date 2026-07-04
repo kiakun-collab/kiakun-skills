@@ -5,30 +5,30 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
 except ImportError as exc:  # pragma: no cover
     raise SystemExit("Pillow is required: install it with `python -m pip install Pillow`.") from exc
 
-
-def natural_key(path: Path) -> list[object]:
-    return [
-        int(part) if part.isdigit() else part.lower()
-        for part in re.split(r"(\d+)", path.name)
-    ]
+from _image_common import (
+    IMAGE_EXTENSIONS,
+    extract_page_number,
+    load_image_rgb,
+    load_overlay_font,
+    natural_key,
+)
+from _io_common import write_json
 
 
 def image_files(directory: Path) -> list[Path]:
-    allowed = {".png", ".jpg", ".jpeg", ".webp"}
     return sorted(
         [
             path
             for path in directory.iterdir()
-            if path.suffix.lower() in allowed
+            if path.suffix.lower() in IMAGE_EXTENSIONS
             and not path.name.startswith("_")
             and "contact-sheet" not in path.name.lower()
             and "contact_sheet" not in path.name.lower()
@@ -49,19 +49,6 @@ def load_manifest(path: Path | None) -> dict[str, dict[str, int]]:
             str(name): int(page) for name, page in data.get("renders", {}).items()
         },
     }
-
-
-def extract_page_number(path: Path, explicit: dict[str, int]) -> int | None:
-    if path.name in explicit:
-        return explicit[path.name]
-    stem = path.stem
-    labelled = re.search(r"(?:page|slide|p)[-_ ]*0*(\d+)(?!\d)", stem, re.IGNORECASE)
-    if labelled:
-        return int(labelled.group(1))
-    numbers = re.findall(r"\d+", stem)
-    if len(numbers) == 1:
-        return int(numbers[0])
-    return None
 
 
 def page_map(
@@ -106,6 +93,14 @@ def main() -> int:
         "--pairing-output",
         help="Optional pairing JSON path; defaults beside output as *.pairing.json.",
     )
+    parser.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help=(
+            "Instead of failing on missing/extra pages, render a gray placeholder "
+            "cell for the absent side and tag that pairing status=\"missing\"."
+        ),
+    )
     args = parser.parse_args()
     if args.width <= 0 or args.height <= 0:
         parser.error("--width and --height must be positive")
@@ -119,19 +114,22 @@ def main() -> int:
     renders = page_map(render_files, manifest["renders"], "render")
     missing_render_pages = sorted(set(references) - set(renders))
     extra_render_pages = sorted(set(renders) - set(references))
-    errors = []
-    if missing_render_pages:
-        errors.append(
-            "Missing render pages: " + ", ".join(str(page) for page in missing_render_pages)
-        )
-    if extra_render_pages:
-        errors.append(
-            "Extra render pages: " + ", ".join(str(page) for page in extra_render_pages)
-        )
-    if errors:
-        raise SystemExit("; ".join(errors))
+    if not args.allow_missing:
+        errors = []
+        if missing_render_pages:
+            errors.append(
+                "Missing render pages: " + ", ".join(str(page) for page in missing_render_pages)
+            )
+        if extra_render_pages:
+            errors.append(
+                "Extra render pages: " + ", ".join(str(page) for page in extra_render_pages)
+            )
+        if errors:
+            raise SystemExit("; ".join(errors))
+        pages = sorted(references)
+    else:
+        pages = sorted(set(references) | set(renders))
 
-    pages = sorted(references)
     width = args.width
     height = args.height
     label_height = 28
@@ -139,21 +137,34 @@ def main() -> int:
     row_height = height + label_height + gap
     canvas = Image.new("RGB", (width * 2 + gap, row_height * len(pages)), "white")
     draw = ImageDraw.Draw(canvas)
-    font = ImageFont.load_default()
+    font = load_overlay_font()
     pairings = []
 
+    def placeholder(text: str) -> Image.Image:
+        cell = Image.new("RGB", (width, height), "#DDDDDD")
+        ImageDraw.Draw(cell).text(
+            (8, max(0, height // 2 - 6)), text, fill="#666666", font=font
+        )
+        return cell
+
     for row_index, page in enumerate(pages):
-        reference_path = references[page]
-        render_path = renders[page]
+        reference_path = references.get(page)
+        render_path = renders.get(page)
         try:
-            with Image.open(reference_path) as reference_image:
-                reference = reference_image.convert("RGB").resize(
+            reference = (
+                load_image_rgb(reference_path).resize(
                     (width, height), Image.Resampling.LANCZOS
                 )
-            with Image.open(render_path) as render_image:
-                render = render_image.convert("RGB").resize(
+                if reference_path is not None
+                else placeholder("reference missing")
+            )
+            render = (
+                load_image_rgb(render_path).resize(
                     (width, height), Image.Resampling.LANCZOS
                 )
+                if render_path is not None
+                else placeholder("render missing")
+            )
         except OSError as exc:
             print(f"image comparison failed on page {page}: {exc}", file=sys.stderr)
             return 2
@@ -167,13 +178,16 @@ def main() -> int:
             fill="black",
             font=font,
         )
-        pairings.append(
-            {
-                "page": page,
-                "reference": reference_path.name,
-                "render": render_path.name,
-            }
-        )
+        entry = {
+            "page": page,
+            "reference": reference_path.name if reference_path is not None else None,
+            "render": render_path.name if render_path is not None else None,
+        }
+        if args.allow_missing:
+            entry["status"] = (
+                "matched" if reference_path is not None and render_path is not None else "missing"
+            )
+        pairings.append(entry)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -183,19 +197,14 @@ def main() -> int:
         if args.pairing_output
         else output_path.with_suffix(".pairing.json")
     )
-    pairing_output.parent.mkdir(parents=True, exist_ok=True)
-    pairing_output.write_text(
-        json.dumps(
-            {
-                "referenceDirectory": str(Path(args.reference_dir)),
-                "renderDirectory": str(Path(args.render_dir)),
-                "output": str(output_path),
-                "pairings": pairings,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+    write_json(
+        pairing_output,
+        {
+            "referenceDirectory": str(Path(args.reference_dir)),
+            "renderDirectory": str(Path(args.render_dir)),
+            "output": str(output_path),
+            "pairings": pairings,
+        },
     )
     print(output_path)
     print(pairing_output)

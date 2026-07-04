@@ -53,7 +53,7 @@
   "unresolvedTextFrameCount": null,
   "unresolvedGroupTransformCount": null,
   "geometryCoverageRisks": [],
-  "bodyCandidatesPerPage": [],
+  "bodyCandidates": [],
   "textRecovery": {
     "sourceFiles": [],
     "resolvedItems": [],

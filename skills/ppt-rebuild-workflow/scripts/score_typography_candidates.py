@@ -10,19 +10,12 @@ import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageFilter
+    from PIL import ImageFilter
 except ImportError as exc:  # pragma: no cover
     raise SystemExit("Pillow is required: install it with `python -m pip install Pillow`.") from exc
 
-
-def percentile(histogram: list[int], ratio: float) -> int:
-    cutoff = sum(histogram) * ratio
-    running = 0
-    for value, count in enumerate(histogram):
-        running += count
-        if running >= cutoff:
-            return value
-    return 255
+from _image_common import load_image_rgb, percentile_from_histogram
+from _io_common import write_json
 
 
 def contiguous_runs(values: list[int], minimum: int) -> list[tuple[int, int]]:
@@ -45,8 +38,7 @@ def contiguous_runs(values: list[int], minimum: int) -> list[tuple[int, int]]:
 
 
 def analyze_render(path: Path, crop: dict) -> dict:
-    with Image.open(path) as source:
-        image = source.convert("RGB")
+    image = load_image_rgb(path)
     x = int(crop.get("x", 0))
     y = int(crop.get("y", 0))
     w = int(crop.get("w", 0))
@@ -56,7 +48,7 @@ def analyze_render(path: Path, crop: dict) -> dict:
     if x < 0 or y < 0 or x + w > image.width or y + h > image.height:
         raise ValueError(f"renderCrop is outside the rendered image: {path}")
     region = image.crop((x, y, x + w, y + h)).convert("L").filter(ImageFilter.FIND_EDGES)
-    threshold = max(24, percentile(region.histogram(), 0.88))
+    threshold = max(24, percentile_from_histogram(region.histogram(), 0.88))
     pixels = region.load()
     points = [
         (px, py)
@@ -155,11 +147,20 @@ def main() -> int:
     args = parser.parse_args()
     input_path = Path(args.input)
     output_path = Path(args.output)
+    # Top-level catch is only for reading/parsing the input; a malformed single
+    # item must be recorded as a failure rather than aborting the whole file (P2-3).
     try:
         data = json.loads(input_path.read_text(encoding="utf-8"))
-        data["schemaVersion"] = "2.0"
-        failures = []
-        for item in data.get("items", []):
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(data, dict):
+        print("error: typography-calibration JSON root must be an object", file=sys.stderr)
+        return 2
+    data["schemaVersion"] = "2.0"
+    failures = []
+    for item in data.get("items", []):
+        try:
             ranked = []
             for index, candidate in enumerate(item.get("candidates", []), start=1):
                 candidate.setdefault("id", f"{item.get('id', 'text')}-candidate-{index:02d}")
@@ -194,14 +195,13 @@ def main() -> int:
                 ),
                 "needsHumanReview": False,
             }
-        data["generatedBy"] = "score_typography_candidates.py"
-        data["status"] = "PASS" if not failures else "FAIL"
-        data["failures"] = failures
-    except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except (KeyError, TypeError, AttributeError) as exc:
+            item_id = item.get("id") if isinstance(item, dict) else None
+            failures.append({"itemId": item_id, "error": str(exc)})
+    data["generatedBy"] = "score_typography_candidates.py"
+    data["status"] = "PASS" if not failures else "FAIL"
+    data["failures"] = failures
+    write_json(output_path, data)
     print(output_path)
     return 0 if not failures else 1
 

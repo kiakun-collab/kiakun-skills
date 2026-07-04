@@ -96,6 +96,8 @@
     }
   ],
   "notes": [
-    "删除不适用的示例对象，并为每个保留对象填写 role、坐标、层级、可编辑性、来源和 coordinateCalibrationId。"
+    "删除不适用的示例对象，并为每个保留对象填写 role、坐标、层级、可编辑性、来源和 coordinateCalibrationId。",
+    "背景对象的 editable 按模式取值：Mode B 背景烘焙进无字底图，editable=false；Mode C 背景是独立可替换图层，editable=true。其余文字/结构对象默认 editable=true。",
+    "anchorQuality（extract 输出 PASS/INSUFFICIENT，指宏观锚点数量是否达标）与 coordinateCalibration.status（calibrate 输出 PASS/INCONCLUSIVE/FAIL，指渲染偏移是否达标）是不同对象的不同词表，勿混用。"
   ]
 }

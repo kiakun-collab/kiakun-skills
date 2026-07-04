@@ -8,6 +8,7 @@
   },
   "sourceExtractionFile": "page-01-visual-extraction.json",
   "typographyCalibrationFile": "page-01-typography-calibration.json",
+  "visualTransitions": [],
   "objects": [
     {
       "name": "background-environment",

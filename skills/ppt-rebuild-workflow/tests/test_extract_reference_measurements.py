@@ -122,6 +122,65 @@ class ExtractReferenceMeasurementsTests(unittest.TestCase):
         self.assertEqual(len(data["pages"]), 1)
         self.assertEqual(len(data["failedPages"]), 1)
 
+    def test_all_bad_images_exit_with_code_2(self) -> None:
+        # P2-3 / P4-4: every image failing (tolerated errors) yields no pages -> exit 2.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "page-01.png").write_bytes(b"not an image")
+            (root / "page-02.png").write_bytes(b"still not an image")
+            output = root / "measurements.json"
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), str(root), "--output", str(output)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            data = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(data["pages"], [])
+        self.assertEqual(len(data["failedPages"]), 2)
+
+    def test_doctor_reports_engine_and_dependencies(self) -> None:
+        # P3-2: --doctor prints the engine + dependency diagnosis and exits 0.
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--doctor"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("measurement engine:", result.stdout)
+        self.assertIn("numpy:", result.stdout)
+
+    def test_verbose_prints_progress_to_stderr_only(self) -> None:
+        # P3-3: --verbose emits per-page progress on stderr; stdout stays the path.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            references = root / "references"
+            references.mkdir()
+            for page in (1, 2):
+                write_reference(references / f"page-{page:02d}.png")
+            output = root / "measurements.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    str(references),
+                    "--output",
+                    str(output),
+                    "--jobs",
+                    "1",
+                    "--verbose",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), str(output))
+        self.assertIn("page 1/2", result.stderr)
+        self.assertIn("page 2/2", result.stderr)
+
     def test_rejects_zero_target_dimension(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -141,6 +200,72 @@ class ExtractReferenceMeasurementsTests(unittest.TestCase):
                 check=False,
             )
         self.assertEqual(result.returncode, 2)
+
+    def test_cli_survives_gbk_stdout_with_non_ascii_output_path(self) -> None:
+        # Regression for P1-3: printing a non-GBK-encodable output path must not
+        # crash on a GBK console (make_stdout_robust reconfigures stdout).
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            references = root / "references"
+            references.mkdir()
+            write_reference(references / "page-01.png")
+            output = root / "measure-\U0001F3AF.json"
+            environment = os.environ.copy()
+            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+            environment["PYTHONIOENCODING"] = "gbk"
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), str(references), "--output", str(output)],
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
+            output_exists = output.exists()
+        self.assertEqual(result.returncode, 0, result.stderr.decode("gbk", "backslashreplace"))
+        self.assertNotIn(b"UnicodeEncodeError", result.stderr)
+        self.assertTrue(output_exists)
+
+    def test_parallel_output_is_byte_identical_to_serial(self) -> None:
+        # P0-3: --jobs must not change the JSON; parallel completion order is
+        # reassembled by page index. Shared --annotated-dir keeps path fields equal.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            references = root / "references"
+            references.mkdir()
+            for page in range(1, 4):
+                write_reference(references / f"page-{page:02d}.png")
+            annotated = root / "annotated"
+            serial_out = root / "serial.json"
+            parallel_out = root / "parallel.json"
+            environment = os.environ.copy()
+            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+
+            def run(output: Path, jobs: str) -> subprocess.CompletedProcess:
+                return subprocess.run(
+                    [
+                        sys.executable,
+                        str(SCRIPT),
+                        str(references),
+                        "--output",
+                        str(output),
+                        "--annotated-dir",
+                        str(annotated),
+                        "--jobs",
+                        jobs,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=environment,
+                    check=False,
+                )
+
+            serial = run(serial_out, "1")
+            parallel = run(parallel_out, "3")
+            serial_bytes = serial_out.read_bytes()
+            parallel_bytes = parallel_out.read_bytes()
+
+        self.assertEqual(serial.returncode, 0, serial.stderr)
+        self.assertEqual(parallel.returncode, 0, parallel.stderr)
+        self.assertEqual(serial_bytes, parallel_bytes)
 
     def test_accelerated_and_python_engines_keep_geometry_compatible(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -9,6 +9,8 @@ import json
 import sys
 from pathlib import Path
 
+from _io_common import write_json
+
 ALIASES = {
     "renderBackend": "acceptanceRenderer",
     "flaggedPages": "visionFlaggedPages",
@@ -236,11 +238,7 @@ def main() -> int:
         "migrationWarnings": warnings,
     }
     if args.normalized_output:
-        normalized_path = Path(args.normalized_output)
-        normalized_path.parent.mkdir(parents=True, exist_ok=True)
-        normalized_path.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        write_json(Path(args.normalized_output), report)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 2 if errors else 1 if gates else 0
 
