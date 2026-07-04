@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ppt-rebuild-workflow"
+version = "0.1.0"
+description = "Scripts and references for rebuilding slide screenshots into editable PPTX."
+readme = "SKILL.md"
+requires-python = ">=3.9"
+dependencies = [
+    "Pillow>=9",
+]
+
+[project.optional-dependencies]
+# Accelerated numeric paths for calibrate/extract/score (cv2/scipy/numpy).
+# The scripts degrade to pure-Python fallbacks when these are absent.
+fast = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "opencv-python-headless>=4.6",
+]
+# Fixture generation and audit tests rely on python-pptx.
+dev = [
+    "python-pptx>=0.6",
+]
+
+# The repository is a flat collection of standalone scripts under scripts/,
+# not an importable package. Declare no packages so `pip install -e .` installs
+# only project metadata and dependencies without attempting auto-discovery.
+[tool.setuptools]
+packages = []

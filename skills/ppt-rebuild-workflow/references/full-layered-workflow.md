@@ -4,6 +4,8 @@
 
 ## 分层目标
 
+资产决策使用 [asset-audit-template.md](../assets/templates/asset-audit-template.md)，样式参数使用 [style-spec-template.md](../assets/templates/style-spec-template.md)。
+
 - 页面底色：PPT background fill。
 - 纯背景：独立图片，只含环境。
 - 人物：透明 PNG，优先每个人独立。
@@ -38,7 +40,7 @@
 - typography calibration 已覆盖标题、正文、标签和页码等主要文字样式。
 - `coordinateCalibration.status = PASS`，临时校准层已验证，最终 deck 不包含该参考层。
 - 每个低置信且要求可编辑的对象都有稳定原生实现，或已按用户可编辑边界自动降级；未解决冲突为零。
-- `unexpectedTextOverlapCount = 0`
+- `visualOverlapCount = 0`
 - `forbiddenOverlayShapesDetected = 0`
 - `visualFidelityStatus = PASS`
 - `majorFidelityDeviationCount = 0`

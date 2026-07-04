@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "2.0",
   "page": "01",
   "mode": "C",
   "coordinateSystem": {
@@ -7,6 +8,7 @@
   },
   "sourceExtractionFile": "page-01-visual-extraction.json",
   "typographyCalibrationFile": "page-01-typography-calibration.json",
+  "visualTransitions": [],
   "objects": [
     {
       "name": "background-environment",

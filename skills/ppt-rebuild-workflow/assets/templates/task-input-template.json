@@ -1,10 +1,12 @@
 {
+  "schemaVersion": "2.0",
   "taskMode": "",
   "autonomyProfile": "auto-calibrated",
   "targetFont": "",
   "fontCandidateSet": [],
   "acceptanceRenderer": "",
   "sourcePptx": "",
+  "sourceCopy": [],
   "referenceImages": [],
   "slideOrder": [],
   "editableBoundary": {
@@ -30,6 +32,7 @@
   "overwritePolicy": "forbid",
   "permissionPolicy": "follow-current-thread-policy",
   "notes": [
+    "对话字段使用 snake_case，落盘字段使用 camelCase，完整映射（14 个对话字段全部覆盖）：task_mode -> taskMode、autonomy_profile -> autonomyProfile、target_font -> targetFont、font_candidate_set -> fontCandidateSet、acceptance_renderer -> acceptanceRenderer、source_pptx -> sourcePptx、source_copy -> sourceCopy、reference_images -> referenceImages、slide_order -> slideOrder、editable_boundary -> editableBoundary、asset_strategy -> assetStrategy、visual_extraction -> visualExtraction、qa_level -> qaLevel、output_directory -> output.directory、output_name -> output.fileName、overwrite_policy -> overwritePolicy、permission_policy -> permissionPolicy。",
     "targetFont 为空时必须在 acceptanceRenderer 中比较 fontCandidateSet，不阻塞等待人工选字。",
     "temporaryCalibrationDir 只能保存临时校准图或校准 PPT，不得作为最终 deck 的页面来源。",
     "overwritePolicy 默认 forbid；只有用户明确要求覆盖、已有备份或任务属于受控增量修改时，才可改为 allow，并在报告中记录原因。"

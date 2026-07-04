@@ -8,12 +8,13 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
-from audit_pptx_text_frames import audit  # noqa: E402
-from tests.common import (  # noqa: E402
+from audit_pptx_text_frames import audit
+
+from tests.common import (
     make_connector_pptx,
     make_inherited_placeholder_pptx,
-    make_slide_layout_relationship_absolute,
     make_rotation_and_group_pptx,
+    make_slide_layout_relationship_absolute,
 )
 
 

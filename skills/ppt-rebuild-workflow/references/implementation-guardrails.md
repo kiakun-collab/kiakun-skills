@@ -15,7 +15,7 @@
 ### 视觉抽取和坐标
 
 - Mode B/C 先按 `visual-extraction-pass.md` 建立逐页 `visual-extraction`，再转成 `layout-spec` 和 `style-spec`。
-- `auto-calibrated` 必须先完成临时校准层、坐标变换和 6-12 个自动宏观锚点；参考整图只能存在于该临时产物，不得进入最终 deck。
+- `auto-calibrated` 必须先完成临时校准层、坐标变换和 3-12 个稳定自动宏观锚点；少于 3 个时必须标记 `INSUFFICIENT`，参考整图只能存在于临时产物，不得进入最终 deck。
 - 每个可编辑文字、形状和内容图对象必须能追溯到参考图 bbox、原 PPTX 对象、用户文案或明确的风格复用依据之一。
 - 复杂或低置信形状默认进入 `baked-asset` 或 `mode-b-fallback`；只有用户强制要求其独立可编辑且无稳定原生实现时才设置 `needsHumanReview`。
 

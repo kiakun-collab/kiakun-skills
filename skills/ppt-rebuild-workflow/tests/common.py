@@ -10,7 +10,6 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE, MSO_CONNECTOR
 from pptx.util import Inches
 
-
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 
@@ -176,5 +175,25 @@ def make_role_pptx(path: Path) -> Path:
     Image.new("RGB", (64, 64), "#335577").save(image_path)
     picture = slide.shapes.add_picture(str(image_path), Inches(8), Inches(1))
     picture.name = "content-image-01"
+    presentation.save(path)
+    return path
+
+
+def make_grouped_full_slide_picture_pptx(path: Path, image_path: Path) -> Path:
+    Image.new("RGB", (1280, 720), "#334455").save(image_path)
+    presentation = Presentation()
+    presentation.slide_width = Inches(13.333333)
+    presentation.slide_height = Inches(7.5)
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    group = slide.shapes.add_group_shape()
+    group.name = "group-background"
+    picture = group.shapes.add_picture(
+        str(image_path),
+        0,
+        0,
+        width=presentation.slide_width,
+        height=presentation.slide_height,
+    )
+    picture.name = "background-main"
     presentation.save(path)
     return path

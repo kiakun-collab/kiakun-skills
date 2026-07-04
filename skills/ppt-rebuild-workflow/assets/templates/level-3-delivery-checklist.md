@@ -7,10 +7,12 @@
 - [ ] 分层后的版式、构图、层级、色彩、字体观感、间距和关键素材达到参考图目标。
 - [ ] 每个分层对象有视觉抽取、资产审计或原 PPTX 来源；低置信对象已闭环。
 - [ ] 主要文字样式有 typography calibration 记录；字体候选在同一 `acceptanceRenderer` 中比较，最终 bbox、baseline、lineCount 和 overflow 证据完整。
-- [ ] 自动返修未超过三轮；任何自动降级或 `autoFidelityBlocked` 都已记录，存在阻断项时未声明 Level 3 通过。
+- [ ] 首次构建记为 `autoIterationCount = 0`，返修次数不超过 3；任何自动降级或 `autoFidelityBlocked` 都已记录，存在阻断项时未声明 Level 3 通过。
 - [ ] `wholeReferenceImageEmbedded` 有自动风险证据、人工对照结论和最终状态。
 - [ ] `combinedBackgroundPersonPictureCount` 有自动证据、人工证据和最终状态。
 - [ ] `contentPicturesAreIndependentObjects` 有自动证据、人工证据和最终状态。
-- [ ] `unexpectedTextOverlapCount` 有自动证据、人工证据和最终状态。
+- [ ] `visualOverlapCount` 有自动证据、人工证据和最终状态。
+- [ ] `visualExtractionComplete` 有自动证据、人工证据和最终状态。
+- [ ] `typographyCalibrationComplete` 有自动证据、人工证据和最终状态。
 - [ ] `forbiddenOverlayShapesDetected` 有自动证据、人工证据和最终状态。
 - [ ] 所有不可拆分例外已写入 asset-audit。

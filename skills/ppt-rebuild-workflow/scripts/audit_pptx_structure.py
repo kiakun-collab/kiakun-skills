@@ -11,11 +11,8 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-
-NS = {
-    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
-    "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
-}
+from _io_common import write_json
+from _pptx_common import NS, group_transform, shape_name, slide_sort_key
 
 ROLE_PREFIXES = (
     ("content-image", ("content-image-", "content_image-", "content-pic-")),
@@ -55,11 +52,6 @@ def read_xml(zf: zipfile.ZipFile, name: str) -> ET.Element:
     return ET.fromstring(zf.read(name))
 
 
-def slide_sort_key(name: str) -> int:
-    match = re.search(r"slide(\d+)\.xml$", name)
-    return int(match.group(1)) if match else 0
-
-
 def shape_role(name: str) -> str:
     lowered = name.strip().lower()
     for role, prefixes in ROLE_PREFIXES:
@@ -74,16 +66,10 @@ def increment(counts: dict[str, int], key: str) -> None:
     counts[key] = counts.get(key, 0) + 1
 
 
-def shape_name(shape: ET.Element, kind: str) -> str:
-    paths = {
-        "shape": "./p:nvSpPr/p:cNvPr",
-        "picture": "./p:nvPicPr/p:cNvPr",
-    }
-    node = shape.find(paths[kind], NS)
-    return node.attrib.get("name", "") if node is not None else ""
-
-
-def frame_of_picture(picture: ET.Element) -> dict[str, int] | None:
+def frame_of_picture(
+    picture: ET.Element,
+    transform: tuple[float, float, float, float] = (1.0, 1.0, 0.0, 0.0),
+) -> dict[str, int] | None:
     xfrm = picture.find("./p:spPr/a:xfrm", NS)
     if xfrm is None:
         return None
@@ -91,15 +77,50 @@ def frame_of_picture(picture: ET.Element) -> dict[str, int] | None:
     ext = xfrm.find("./a:ext", NS)
     if off is None or ext is None:
         return None
+    sx, sy, tx, ty = transform
     return {
-        "x": int(off.attrib.get("x", "0")),
-        "y": int(off.attrib.get("y", "0")),
-        "w": int(ext.attrib.get("cx", "0")),
-        "h": int(ext.attrib.get("cy", "0")),
+        "x": round(int(off.attrib.get("x", "0")) * sx + tx),
+        "y": round(int(off.attrib.get("y", "0")) * sy + ty),
+        "w": round(int(ext.attrib.get("cx", "0")) * sx),
+        "h": round(int(ext.attrib.get("cy", "0")) * sy),
     }
 
 
+def collect_pictures(
+    root: ET.Element,
+) -> tuple[list[tuple[ET.Element, tuple[float, float, float, float] | None]], list[dict]]:
+    pictures = []
+    risks = []
+    tree = root.find(".//p:spTree", NS)
+    if tree is None:
+        return pictures, risks
+
+    def visit(container: ET.Element, transform, inherited_risk: str | None = None) -> None:
+        for child in list(container):
+            if child.tag == f"{{{NS['p']}}}pic":
+                pictures.append((child, None if inherited_risk else transform))
+                if inherited_risk:
+                    risks.append(
+                        {
+                            "kind": "groupPictureTransform",
+                            "pictureName": shape_name(child, "picture"),
+                            "detail": inherited_risk,
+                        }
+                    )
+            elif child.tag == f"{{{NS['p']}}}grpSp":
+                next_transform, risk = group_transform(child, transform)
+                if next_transform is None:
+                    visit(child, transform, risk or "group transform unresolved")
+                else:
+                    visit(child, next_transform, inherited_risk)
+
+    visit(tree, (1.0, 1.0, 0.0, 0.0))
+    return pictures, risks
+
+
 def coverage_ratio(frame: dict[str, int], slide_w: int, slide_h: int) -> float:
+    if slide_w <= 0 or slide_h <= 0:
+        raise ValueError("slide dimensions must be positive")
     left = max(0, frame["x"])
     top = max(0, frame["y"])
     right = min(slide_w, frame["x"] + frame["w"])
@@ -119,13 +140,17 @@ def relevant_font_parts(names: list[str]) -> list[str]:
     return sorted(name for name in names if any(re.fullmatch(p, name) for p in patterns))
 
 
-def read_theme_font_map(zf: zipfile.ZipFile, names: list[str]) -> tuple[dict, set[str]]:
+def read_theme_font_map(
+    zf: zipfile.ZipFile,
+    names: list[str],
+    roots: dict[str, ET.Element] | None = None,
+) -> tuple[dict, set[str]]:
     mapping: dict[str, dict[str, str]] = {"major": {}, "minor": {}}
     all_theme_fonts: set[str] = set()
     for name in names:
         if not re.fullmatch(r"ppt/theme/theme\d+\.xml", name):
             continue
-        root = read_xml(zf, name)
+        root = roots[name] if roots is not None and name in roots else read_xml(zf, name)
         for family, element_name in (("major", "majorFont"), ("minor", "minorFont")):
             node = root.find(f".//a:{element_name}", NS)
             if node is None:
@@ -146,14 +171,19 @@ def read_theme_font_map(zf: zipfile.ZipFile, names: list[str]) -> tuple[dict, se
 def collect_fonts(
     zf: zipfile.ZipFile,
     names: list[str],
+    roots: dict[str, ET.Element] | None = None,
 ) -> tuple[dict[str, set[str]], set[str], list[dict[str, str]]]:
     font_sets = {field: set() for field in FONT_SLOTS.values()}
-    theme_map, theme_fonts = read_theme_font_map(zf, names)
+    theme_map, theme_fonts = read_theme_font_map(zf, names, roots)
     unresolved: list[dict[str, str]] = []
     parts = relevant_font_parts(names)
 
     for part_name in parts:
-        root = read_xml(zf, part_name)
+        root = (
+            roots[part_name]
+            if roots is not None and part_name in roots
+            else read_xml(zf, part_name)
+        )
         for slot, output_field in FONT_SLOTS.items():
             for node in root.findall(f".//a:{slot}", NS):
                 typeface = node.attrib.get("typeface", "").strip()
@@ -169,7 +199,11 @@ def collect_fonts(
                     continue
                 if typeface.startswith("+"):
                     theme_key = THEME_TOKEN_MAP.get(typeface)
-                    resolved = theme_map.get(theme_key[0], {}).get(theme_key[1]) if theme_key else None
+                    resolved = (
+                        theme_map.get(theme_key[0], {}).get(theme_key[1])
+                        if theme_key
+                        else None
+                    )
                     if resolved:
                         font_sets[output_field].add(resolved)
                     else:
@@ -210,12 +244,20 @@ def collect_fonts(
 def audit(pptx_path: Path) -> dict:
     with zipfile.ZipFile(pptx_path) as zf:
         names = zf.namelist()
+        root_cache = {
+            name: read_xml(zf, name)
+            for name in relevant_font_parts(names)
+        }
+        if "ppt/presentation.xml" not in names:
+            raise ValueError("PPTX package has no ppt/presentation.xml")
         presentation = read_xml(zf, "ppt/presentation.xml")
         slide_size = presentation.find("./p:sldSz", NS)
         if slide_size is None:
             raise ValueError("ppt/presentation.xml has no p:sldSz")
-        slide_w = int(slide_size.attrib["cx"])
-        slide_h = int(slide_size.attrib["cy"])
+        slide_w = int(slide_size.attrib.get("cx", "0"))
+        slide_h = int(slide_size.attrib.get("cy", "0"))
+        if slide_w <= 0 or slide_h <= 0:
+            raise ValueError("ppt/presentation.xml has invalid slide dimensions")
         slide_names = sorted(
             [name for name in names if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)],
             key=slide_sort_key,
@@ -226,7 +268,7 @@ def audit(pptx_path: Path) -> dict:
         empty_media = [
             name for name in media_names if zf.getinfo(name).file_size == 0
         ]
-        font_sets, theme_fonts, unresolved_fonts = collect_fonts(zf, names)
+        font_sets, theme_fonts, unresolved_fonts = collect_fonts(zf, names, root_cache)
 
         totals = {
             "textRunCount": 0,
@@ -240,14 +282,18 @@ def audit(pptx_path: Path) -> dict:
         picture_roles: dict[str, int] = {}
         unknown_names: set[str] = set()
         full_slide_risk_pages: list[int] = []
+        picture_geometry_risks: list[dict] = []
         pages = []
 
         for page_number, slide_name in enumerate(slide_names, start=1):
-            root = read_xml(zf, slide_name)
+            root = root_cache[slide_name]
             text_runs = root.findall(".//a:t", NS)
             tx_bodies = root.findall(".//p:txBody", NS)
             shapes = root.findall(".//p:sp", NS)
-            pictures = root.findall(".//p:pic", NS)
+            picture_items, page_picture_risks = collect_pictures(root)
+            pictures = [item[0] for item in picture_items]
+            for risk in page_picture_risks:
+                picture_geometry_risks.append({"page": page_number, **risk})
             role_counts: dict[str, int] = {}
             page_text_roles: dict[str, int] = {}
             page_non_text_roles: dict[str, int] = {}
@@ -272,7 +318,7 @@ def audit(pptx_path: Path) -> dict:
                     unknown_names.add(display_name)
 
             picture_coverages = []
-            for picture in pictures:
+            for picture, transform in picture_items:
                 name = shape_name(picture, "picture")
                 role = shape_role(name)
                 increment(role_counts, role)
@@ -283,7 +329,7 @@ def audit(pptx_path: Path) -> dict:
                     display_name = name or "(unnamed picture)"
                     page_unknown.append(display_name)
                     unknown_names.add(display_name)
-                frame = frame_of_picture(picture)
+                frame = frame_of_picture(picture, transform) if transform is not None else None
                 ratio = coverage_ratio(frame, slide_w, slide_h) if frame else None
                 picture_coverages.append(
                     {
@@ -315,7 +361,8 @@ def audit(pptx_path: Path) -> dict:
                 "nonTextShapeRoleCounts": page_non_text_roles,
                 "pictureRoleCounts": page_picture_roles,
                 "unknownRoleNames": sorted(set(page_unknown)),
-                "pictureCoverages": picture_coverages,
+                    "pictureCoverages": picture_coverages,
+                    "pictureGeometryRisks": page_picture_risks,
                 "maxPictureCoverageRatio": round(max_coverage, 6),
                 "fullSlideImageRisk": full_slide_risk,
             }
@@ -355,6 +402,7 @@ def audit(pptx_path: Path) -> dict:
             ],
             "pages": pages,
             "fullSlideImageRiskPages": full_slide_risk_pages,
+            "pictureGeometryRisks": picture_geometry_risks,
             "wholeReferenceImageEmbedded": {
                 "status": "risk" if has_full_slide_risk else "notDetected",
                 "automatedEvidence": (
@@ -382,6 +430,11 @@ def main() -> int:
     )
     parser.add_argument("pptx", help="Path to PPTX")
     parser.add_argument("--output", help="Optional JSON output path")
+    parser.add_argument(
+        "--print-json",
+        action="store_true",
+        help="Print the full JSON to stdout even when --output is given.",
+    )
     args = parser.parse_args()
 
     pptx_path = Path(args.pptx)
@@ -389,15 +442,34 @@ def main() -> int:
         print(f"PPTX not found: {pptx_path}", file=sys.stderr)
         return 2
 
-    result = audit(pptx_path)
-    text = json.dumps(result, ensure_ascii=False, indent=2)
+    try:
+        result = audit(pptx_path)
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, ET.ParseError) as exc:
+        print(f"PPTX audit failed: {exc}", file=sys.stderr)
+        return 2
     if args.output:
-        output = Path(args.output)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(text, encoding="utf-8")
+        write_json(Path(args.output), result)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="backslashreplace")
-    print(text)
+    # With --output, print only a compact summary by default (the full report is
+    # on disk); --print-json forces the full JSON. Without --output, always print
+    # the full JSON so nothing is lost (P3-5, aligns with text_frames' summary).
+    if args.output and not args.print_json:
+        summary_keys = (
+            "slideCount",
+            "mediaCount",
+            "emptyMediaCount",
+            "textRunCount",
+            "txBodyCount",
+            "shapeCount",
+            "pictureCount",
+            "imageOnlyRisk",
+        )
+        summary = {key: result[key] for key in summary_keys if key in result}
+        summary["fullSlideImageRiskPages"] = result.get("fullSlideImageRiskPages", [])
+        print(json.dumps(summary, ensure_ascii=False))
+    else:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 

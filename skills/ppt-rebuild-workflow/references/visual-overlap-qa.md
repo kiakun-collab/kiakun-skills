@@ -1,5 +1,7 @@
 # Visual Overlap QA
 
+输出使用 [visual-overlap-audit-template.json](../assets/templates/visual-overlap-audit-template.json)。
+
 ## 目的
 
 对象坐标和文本框边界不能完整代表最终文字结果。字体度量、行高、阴影、描边、透明度、抗锯齿、图片高对比边缘以及细装饰线，都可能造成“参数通过、文字不可读”。
@@ -81,7 +83,7 @@
 
 - `visionAuditStatus`
 - `visualOverlapCount`
-- `flaggedPages`
+- `visionFlaggedPages`
 - 审计使用的渲染目录
 - 复审渲染目录
 

@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "2.0",
   "page": "XX",
   "sourceImage": "",
   "coordinateSystem": {
@@ -7,11 +8,19 @@
   },
   "coordinateCalibration": {
     "id": "page-XX-coordinate-lock",
-    "sourcePxToCanvas": {
-      "scaleX": null,
-      "scaleY": null,
-      "offsetX": 0,
-      "offsetY": 0,
+    "coordinateTransform": {
+      "sourcePxToCanvas": {
+        "scaleX": null,
+        "scaleY": null,
+        "offsetX": 0,
+        "offsetY": 0
+      },
+      "canvasToSourcePx": {
+        "scaleX": null,
+        "scaleY": null,
+        "offsetX": 0,
+        "offsetY": 0
+      },
       "fitMode": ""
     },
     "autoAnchors": [],
@@ -22,7 +31,8 @@
   },
   "measurementArtifacts": {
     "referenceMeasurementsJson": "",
-    "annotatedImage": ""
+    "annotatedImage": "",
+    "anchorAnnotatedImage": ""
   },
   "semanticSummary": "",
   "readingOrder": [],

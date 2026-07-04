@@ -24,7 +24,7 @@
 任务：
 
 1. 页面语义拆解和异常文字恢复。
-2. 测量参考图并锁定坐标：运行 `scripts/extract_reference_measurements.py` 或等价测量流程，保存测量 JSON 和标注图，同时保存 `coordinateTransform` 和 6-12 个自动宏观锚点。
+2. 测量参考图并锁定坐标：运行 `scripts/extract_reference_measurements.py`，保存测量 JSON、标注图、`coordinateTransform` 和 3-12 个稳定自动宏观锚点；不足 3 个时不得继续声明校准通过。
 3. 生成并验证临时校准层：把参考图只放入临时校准页，校验自动锚点偏移，保存 `coordinateCalibration.status`。
 4. 复核测量结果并建立视觉抽取：记录文字、形状、图片、间距的 `x/y/w/h`、置信度、误报/漏报修正和测量证据；复杂低置信对象默认 `baked-asset` 或 Mode B fallback。
 5. 在接受渲染后端中比较 2-4 个字体、字号、行距、文本框宽高和内边距候选，记录 bbox、baseline、wrap 和 overflow。
@@ -33,7 +33,7 @@
 8. style-spec，记录参考 bbox 和校准证据。
 9. PPT 构建或审计。
 10. 渲染 QA。
-11. 自动返修建议，最多三轮；仍失败时记录最小自动回退。
+11. 自动返修建议；首次构建记为第 0 轮，最多返修 3 次，仍失败时记录最小自动回退。
 
 硬门槛：
 

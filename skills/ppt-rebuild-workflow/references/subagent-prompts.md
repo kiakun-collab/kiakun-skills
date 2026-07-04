@@ -74,10 +74,10 @@
 1. 逐页查看参考图、测量标注图和临时校准层。
 2. 使用已有 `coordinateTransform` 和 `autoAnchors`，不要重新发明坐标系，也不要要求用户人工确认大量锚点。
 3. 合并或修正候选文本行，输出文字块 bbox、字形 bbox、行数、颜色、对齐、估计字重和候选字号。
-3. 识别可编辑结构形状：卡片、标签、边框、分隔线、页码线、正文框、遮罩等，输出类型、bbox、圆角、填充、描边、透明度、阴影、层级和置信度。
-4. 识别内容图、人物、背景主视觉的 bbox、裁切和可编辑策略。
-5. 记录主要间距：页面边距、标题到副标题、标签到正文、正文框内边距、页码线到画布边缘。
-6. 对低置信对象优先设置 `baked-asset` 或 Mode B fallback；只有必须独立可编辑且无稳定实现时才设置 `needsHumanReview`。
+4. 识别可编辑结构形状：卡片、标签、边框、分隔线、页码线、正文框、遮罩等，输出类型、bbox、圆角、填充、描边、透明度、阴影、层级和置信度。
+5. 识别内容图、人物、背景主视觉的 bbox、裁切和可编辑策略。
+6. 记录主要间距：页面边距、标题到副标题、标签到正文、正文框内边距、页码线到画布边缘。
+7. 对低置信对象优先设置 `baked-asset` 或 Mode B fallback；只有必须独立可编辑且无稳定实现时才设置 `needsHumanReview`。
 
 输出：
 - 只返回符合 visual-extraction-template.json 思路的 JSON。
@@ -192,7 +192,7 @@
 {
   "visionAuditStatus": "PASS",
   "visualOverlapCount": 0,
-  "flaggedPages": [],
+  "visionFlaggedPages": [],
   "issues": [
     {
       "page": 1,

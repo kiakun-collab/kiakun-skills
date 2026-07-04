@@ -4,22 +4,57 @@
 from __future__ import annotations
 
 import argparse
-import json
 import math
-import re
+import os
+import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageStat
+try:
+    from PIL import Image, ImageDraw, ImageStat, UnidentifiedImageError
+except ImportError as exc:  # pragma: no cover - exercised only without Pillow
+    raise SystemExit("Pillow is required: install it with `python -m pip install Pillow`.") from exc
+
+# Per-image failures we tolerate (bad/corrupt/oversized inputs); anything else
+# (e.g. a KeyError from a refactor) must propagate instead of being masked (P2-3).
+IMAGE_FAILURE_ERRORS = (OSError, ValueError, UnidentifiedImageError)
+
+try:  # Optional fast path.
+    import numpy as np
+except ImportError:  # pragma: no cover - environment dependent
+    np = None
+
+try:  # Optional connected-component fast path.
+    from scipy import ndimage as scipy_ndimage
+except ImportError:  # pragma: no cover - environment dependent
+    scipy_ndimage = None
+
+try:  # Optional contour/rectangle detector.
+    import cv2
+except ImportError:  # pragma: no cover - environment dependent
+    cv2 = None
+
+from _image_common import (
+    IMAGE_EXTENSIONS,
+    edge_binary,
+    load_image_rgb,
+    load_overlay_font,
+    natural_key,
+)
+from _io_common import make_stdout_robust, write_json
 
 
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-
-
-def natural_key(path: Path) -> list[object]:
-    return [
-        int(part) if part.isdigit() else part.lower()
-        for part in re.split(r"(\d+)", path.name)
-    ]
+def measurement_engine() -> str:
+    forced = os.environ.get("PPT_REBUILD_MEASUREMENT_ENGINE", "").strip().lower()
+    if forced == "python":
+        return "python"
+    if forced == "numpy-scipy" and np is not None and scipy_ndimage is not None:
+        return "numpy-scipy"
+    if cv2 is not None and np is not None:
+        return "opencv-numpy"
+    if np is not None and scipy_ndimage is not None:
+        return "numpy-scipy"
+    return "python"
 
 
 def image_files(path: Path) -> list[Path]:
@@ -38,19 +73,6 @@ def image_files(path: Path) -> list[Path]:
     return []
 
 
-def percentile_from_histogram(histogram: list[int], percentile: float) -> int:
-    total = sum(histogram)
-    if total <= 0:
-        return 0
-    cutoff = total * percentile
-    running = 0
-    for value, count in enumerate(histogram):
-        running += count
-        if running >= cutoff:
-            return value
-    return len(histogram) - 1
-
-
 def bbox_dict(min_x: int, min_y: int, max_x: int, max_y: int) -> dict[str, int]:
     return {
         "x": int(min_x),
@@ -60,7 +82,7 @@ def bbox_dict(min_x: int, min_y: int, max_x: int, max_y: int) -> dict[str, int]:
     }
 
 
-def connected_components(
+def connected_components_python(
     mask: bytearray,
     width: int,
     height: int,
@@ -126,12 +148,45 @@ def connected_components(
     return components
 
 
+def connected_components(
+    mask: bytearray,
+    width: int,
+    height: int,
+    min_area: int,
+) -> list[dict]:
+    if measurement_engine() == "python" or np is None or scipy_ndimage is None:
+        return connected_components_python(mask, width, height, min_area)
+    array = np.frombuffer(mask, dtype=np.uint8).reshape((height, width)).astype(bool)
+    labels, _count = scipy_ndimage.label(array)
+    objects = scipy_ndimage.find_objects(labels)
+    components = []
+    for label_id, slices in enumerate(objects, start=1):
+        if slices is None:
+            continue
+        y_slice, x_slice = slices
+        pixels = int(np.count_nonzero(labels[slices] == label_id))
+        if pixels < min_area:
+            continue
+        bbox = {
+            "x": int(x_slice.start),
+            "y": int(y_slice.start),
+            "w": int(x_slice.stop - x_slice.start),
+            "h": int(y_slice.stop - y_slice.start),
+        }
+        area = max(1, bbox["w"] * bbox["h"])
+        components.append(
+            {
+                "bbox": bbox,
+                "edgePixels": pixels,
+                "bboxArea": area,
+                "edgeDensity": round(pixels / area, 4),
+            }
+        )
+    return components
+
+
 def edge_mask(image: Image.Image) -> tuple[bytearray, int]:
-    gray = image.convert("L")
-    edges = gray.filter(ImageFilter.FIND_EDGES)
-    threshold = max(24, percentile_from_histogram(edges.histogram(), 0.90))
-    raw = edges.tobytes()
-    return bytearray(1 if value >= threshold else 0 for value in raw), threshold
+    return edge_binary(image, use_numpy=measurement_engine() != "python")
 
 
 def dominant_colors(image: Image.Image, count: int = 8) -> list[dict]:
@@ -259,19 +314,26 @@ def line_candidates(
     axis: str,
 ) -> list[dict]:
     candidates = []
+    array = (
+        np.frombuffer(mask, dtype=np.uint8).reshape((height, width))
+        if measurement_engine() != "python" and np is not None
+        else None
+    )
     if axis == "horizontal":
         threshold = max(36, int(width * 0.16))
-        counts = [
-            sum(mask[y * width : (y + 1) * width])
-            for y in range(height)
-        ]
+        counts = (
+            array.sum(axis=1).astype(int).tolist()
+            if array is not None
+            else [sum(mask[y * width : (y + 1) * width]) for y in range(height)]
+        )
         limit = height
     else:
         threshold = max(24, int(height * 0.16))
-        counts = [
-            sum(mask[y * width + x] for y in range(height))
-            for x in range(width)
-        ]
+        counts = (
+            array.sum(axis=0).astype(int).tolist()
+            if array is not None
+            else [sum(mask[y * width + x] for y in range(height)) for x in range(width)]
+        )
         limit = width
 
     start = None
@@ -282,19 +344,25 @@ def line_candidates(
         if (not active or pos == limit) and start is not None:
             end = pos - 1
             if axis == "horizontal":
-                xs = []
-                for y in range(start, end + 1):
-                    row = mask[y * width : (y + 1) * width]
-                    xs.extend(x for x, value in enumerate(row) if value)
+                if array is not None:
+                    xs = np.nonzero(array[start : end + 1, :])[1].tolist()
+                else:
+                    xs = []
+                    for y in range(start, end + 1):
+                        row = mask[y * width : (y + 1) * width]
+                        xs.extend(x for x, value in enumerate(row) if value)
                 if xs:
                     bbox = bbox_dict(min(xs), start, max(xs), end)
                 else:
                     bbox = bbox_dict(0, start, width - 1, end)
                 keep = bbox["w"] >= 40 and bbox["h"] <= 12
             else:
-                ys = []
-                for x in range(start, end + 1):
-                    ys.extend(y for y in range(height) if mask[y * width + x])
+                if array is not None:
+                    ys = np.nonzero(array[:, start : end + 1])[0].tolist()
+                else:
+                    ys = []
+                    for x in range(start, end + 1):
+                        ys.extend(y for y in range(height) if mask[y * width + x])
                 if ys:
                     bbox = bbox_dict(start, min(ys), end, max(ys))
                 else:
@@ -313,6 +381,65 @@ def line_candidates(
             start = None
 
     return candidates[:max_candidates]
+
+
+def contour_region_candidates(
+    image: Image.Image,
+    max_candidates: int,
+) -> list[dict]:
+    if measurement_engine() != "opencv-numpy" or cv2 is None or np is None:
+        return []
+    rgb = np.asarray(image.convert("RGB"))
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    edges = cv2.Canny(gray, 40, 120)
+    edges = cv2.morphologyEx(
+        edges,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)),
+        iterations=2,
+    )
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    width, height = image.size
+    canvas_area = width * height
+    regions = []
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        area = w * h
+        if area < canvas_area * 0.012 or area > canvas_area * 0.94:
+            continue
+        if w < width * 0.10 or h < height * 0.035:
+            continue
+        contour_area = max(1.0, float(cv2.contourArea(contour)))
+        rectangularity = min(1.0, contour_area / max(1, area))
+        if rectangularity < 0.18:
+            continue
+        bbox = {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
+        perimeter = cv2.arcLength(contour, True)
+        polygon = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
+        regions.append(
+            {
+                "id": f"contour-region-{len(regions)+1:02d}",
+                "bbox": bbox,
+                "edgePixels": int(perimeter),
+                "edgeDensity": round(perimeter / max(1, area), 4),
+                "rectangularity": round(rectangularity, 3),
+                "geometry": "rect-like" if 4 <= len(polygon) <= 8 else "region",
+                "averageColor": average_color(image, bbox),
+                "confidence": round(min(0.95, 0.5 + rectangularity * 0.4), 2),
+            }
+        )
+    selected = []
+    for item in sorted(
+        regions,
+        key=lambda value: (value["confidence"], value["bbox"]["w"] * value["bbox"]["h"]),
+        reverse=True,
+    ):
+        if any(bbox_iou(item["bbox"], existing["bbox"]) > 0.88 for existing in selected):
+            continue
+        selected.append(item)
+        if len(selected) >= max_candidates:
+            break
+    return selected
 
 
 def region_candidates(
@@ -343,11 +470,20 @@ def region_candidates(
             }
         )
 
-    return sorted(
+    component_regions = sorted(
         regions,
         key=lambda item: item["bbox"]["w"] * item["bbox"]["h"],
         reverse=True,
-    )[:max_candidates]
+    )
+    merged = contour_region_candidates(image, max_candidates) + component_regions
+    selected = []
+    for item in merged:
+        if any(bbox_iou(item["bbox"], existing["bbox"]) > 0.9 for existing in selected):
+            continue
+        selected.append(item)
+        if len(selected) >= max_candidates:
+            break
+    return selected
 
 
 def bbox_iou(first: dict[str, int], second: dict[str, int]) -> float:
@@ -388,6 +524,9 @@ def auto_anchors(
     candidates = []
     for item in regions:
         bbox = item["bbox"]
+        area_ratio = bbox["w"] * bbox["h"] / max(1, width * height)
+        if area_ratio < 0.012 or bbox["w"] < width * 0.10 or bbox["h"] < height * 0.035:
+            continue
         candidates.append(
             {
                 "kind": "region",
@@ -399,6 +538,10 @@ def auto_anchors(
         )
     for item in horizontal_lines + vertical_lines:
         bbox = item["bbox"]
+        is_horizontal = bbox["w"] >= bbox["h"]
+        length_ratio = bbox["w"] / width if is_horizontal else bbox["h"] / height
+        if length_ratio < 0.25 or length_ratio > 0.95:
+            continue
         candidates.append(
             {
                 "kind": "line",
@@ -409,10 +552,14 @@ def auto_anchors(
             }
         )
 
-    for item in sorted(candidates, key=lambda value: (value["confidence"], value["area"]), reverse=True):
+    for item in sorted(
+        candidates,
+        key=lambda value: (value["confidence"], math.sqrt(value["area"])),
+        reverse=True,
+    ):
         if len(anchors) >= max(1, limit):
             break
-        if any(bbox_iou(item["bbox"], anchor["bbox"]) >= 0.82 for anchor in anchors):
+        if any(bbox_iou(item["bbox"], anchor["bbox"]) >= 0.75 for anchor in anchors):
             continue
         anchors.append(
             {
@@ -438,7 +585,7 @@ def draw_candidates(
 ) -> None:
     canvas = image.convert("RGB")
     draw = ImageDraw.Draw(canvas, "RGBA")
-    font = ImageFont.load_default()
+    font = load_overlay_font()
 
     def rectangle(item: dict, color: tuple[int, int, int, int], label: str) -> None:
         bbox = item["bbox"]
@@ -466,6 +613,70 @@ def draw_candidates(
     canvas.save(output_path)
 
 
+def fit_reference_image(
+    original: Image.Image,
+    target_width: int,
+    target_height: int,
+    requested_mode: str,
+) -> tuple[Image.Image, dict, list[str]]:
+    source_width, source_height = original.size
+    if min(source_width, source_height, target_width, target_height) <= 0:
+        raise ValueError("source and target dimensions must be positive")
+    source_ratio = source_width / source_height
+    target_ratio = target_width / target_height
+    ratio_delta = abs(source_ratio / target_ratio - 1.0)
+    warnings = []
+    mode = requested_mode
+    if mode == "auto":
+        mode = "contain"
+        if ratio_delta > 0.005:
+            warnings.append(
+                f"aspect ratio differs by {ratio_delta:.2%}; "
+                "auto selected contain instead of stretch"
+            )
+
+    if mode == "stretch":
+        scale_x = target_width / source_width
+        scale_y = target_height / source_height
+        offset_x = offset_y = 0.0
+        canvas = original.resize((target_width, target_height), Image.Resampling.LANCZOS)
+    else:
+        scale = (
+            min(target_width / source_width, target_height / source_height)
+            if mode == "contain"
+            else max(target_width / source_width, target_height / source_height)
+        )
+        scale_x = scale_y = scale
+        fitted_width = max(1, round(source_width * scale))
+        fitted_height = max(1, round(source_height * scale))
+        offset_x = (target_width - fitted_width) / 2
+        offset_y = (target_height - fitted_height) / 2
+        resized = original.resize((fitted_width, fitted_height), Image.Resampling.LANCZOS)
+        canvas = Image.new("RGB", (target_width, target_height), "white")
+        canvas.paste(resized, (round(offset_x), round(offset_y)))
+
+    inverse_offset_x = -offset_x / scale_x
+    inverse_offset_y = -offset_y / scale_y
+    transform = {
+        "sourcePxToCanvas": {
+            "scaleX": round(scale_x, 6),
+            "scaleY": round(scale_y, 6),
+            "offsetX": round(offset_x, 3),
+            "offsetY": round(offset_y, 3),
+        },
+        "canvasToSourcePx": {
+            "scaleX": round(1 / scale_x, 6),
+            "scaleY": round(1 / scale_y, 6),
+            "offsetX": round(inverse_offset_x, 3),
+            "offsetY": round(inverse_offset_y, 3),
+        },
+        "fitMode": mode,
+        "requestedFitMode": requested_mode,
+        "aspectRatioDelta": round(ratio_delta, 6),
+    }
+    return canvas, transform, warnings
+
+
 def analyze_image(
     path: Path,
     page_number: int,
@@ -475,11 +686,16 @@ def analyze_image(
     min_component_area: int,
     max_candidates: int,
     auto_anchor_limit: int,
+    fit_mode: str,
 ) -> dict:
-    with Image.open(path) as source:
-        original = source.convert("RGB")
-        original_size = original.size
-        image = original.resize((target_width, target_height), Image.Resampling.LANCZOS)
+    original = load_image_rgb(path)
+    original_size = original.size
+    image, transform, warnings = fit_reference_image(
+        original,
+        target_width,
+        target_height,
+        fit_mode,
+    )
 
     mask, threshold = edge_mask(image)
     components = connected_components(mask, target_width, target_height, min_component_area)
@@ -512,34 +728,26 @@ def analyze_image(
         target_height,
         auto_anchor_limit,
     )
+    stable_anchor_count = max(0, len(anchors) - 1)
+    anchor_status = "PASS" if stable_anchor_count >= 3 else "INSUFFICIENT"
 
     annotated_path = annotated_dir / f"{path.stem}-measurements.png"
     draw_candidates(image, text_lines, horizontal, vertical, regions, anchors, annotated_path)
+    anchor_annotated_path = annotated_dir / f"{path.stem}-anchors.png"
+    draw_candidates(image, [], [], [], [], anchors, anchor_annotated_path)
 
     return {
         "page": page_number,
         "image": str(path),
         "originalSize": {"w": original_size[0], "h": original_size[1]},
-        "coordinateSystem": {"w": target_width, "h": target_height},
+        "coordinateSystem": {"width": target_width, "height": target_height},
         "scale": {
-            "x": round(target_width / original_size[0], 6),
-            "y": round(target_height / original_size[1], 6),
+            "x": transform["sourcePxToCanvas"]["scaleX"],
+            "y": transform["sourcePxToCanvas"]["scaleY"],
         },
-        "coordinateTransform": {
-            "sourcePxToCanvas": {
-                "scaleX": round(target_width / original_size[0], 6),
-                "scaleY": round(target_height / original_size[1], 6),
-                "offsetX": 0,
-                "offsetY": 0,
-            },
-            "canvasToSourcePx": {
-                "scaleX": round(original_size[0] / target_width, 6),
-                "scaleY": round(original_size[1] / target_height, 6),
-                "offsetX": 0,
-                "offsetY": 0,
-            },
-            "fitMode": "stretch-to-canvas",
-        },
+        "coordinateTransform": transform,
+        "measurementEngine": measurement_engine(),
+        "warnings": warnings,
         "edgeThreshold": threshold,
         "dominantColors": dominant_colors(image),
         "textLineCandidates": text_lines,
@@ -547,8 +755,38 @@ def analyze_image(
         "verticalLineCandidates": vertical,
         "regionCandidates": regions,
         "autoAnchors": anchors,
+        "anchorQuality": {
+            "status": anchor_status,
+            "stableAnchorCount": stable_anchor_count,
+            "minimumStableAnchors": 3,
+            "message": (
+                "stable macro anchors are available"
+                if anchor_status == "PASS"
+                else "not enough stable macro anchors; do not mark coordinate calibration PASS"
+            ),
+        },
         "annotatedImage": str(annotated_path),
+        "anchorAnnotatedImage": str(anchor_annotated_path),
     }
+
+
+def print_engine_doctor() -> None:
+    """Report the selected measurement engine and dependency availability (P3-2)."""
+    engine = measurement_engine()
+    forced = os.environ.get("PPT_REBUILD_MEASUREMENT_ENGINE", "").strip() or "(unset)"
+    print(f"measurement engine: {engine}")
+    print(f"  PPT_REBUILD_MEASUREMENT_ENGINE={forced}")
+    print(f"  numpy:          {'available' if np is not None else 'MISSING'}")
+    print(f"  scipy.ndimage:  {'available' if scipy_ndimage is not None else 'MISSING'}")
+    print(f"  opencv (cv2):   {'available' if cv2 is not None else 'MISSING'}")
+    if engine == "python":
+        print(
+            "WARNING: pure-Python fallback — connected components and edge binarization "
+            "run without numpy; large batches will be slow."
+        )
+        print("  Install the [fast] extra (numpy/scipy/opencv) for the accelerated path.")
+    else:
+        print("OK: accelerated engine selected.")
 
 
 def main() -> int:
@@ -558,15 +796,54 @@ def main() -> int:
             "reference images. Results must be reviewed before PPT construction."
         )
     )
-    parser.add_argument("input", help="Reference image file or directory")
-    parser.add_argument("--output", required=True, help="JSON output path")
+    parser.add_argument("input", nargs="?", help="Reference image file or directory")
+    parser.add_argument("--output", help="JSON output path")
     parser.add_argument("--annotated-dir", help="Directory for annotated images")
     parser.add_argument("--target-width", type=int, default=1280)
     parser.add_argument("--target-height", type=int, default=720)
+    parser.add_argument(
+        "--fit-mode",
+        choices=("auto", "contain", "cover", "stretch"),
+        default="auto",
+    )
     parser.add_argument("--min-component-area", type=int, default=8)
     parser.add_argument("--max-candidates", type=int, default=40)
     parser.add_argument("--auto-anchor-limit", type=int, default=12)
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        help=(
+            "Worker processes for per-page analysis; 0 (default) uses "
+            "min(cpu_count, page_count). Use 1 to force serial (debugging)."
+        ),
+    )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Print measurement-engine and dependency diagnosis, then exit.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print per-page progress to stderr (stdout still prints only the output path).",
+    )
     args = parser.parse_args()
+
+    if args.doctor:
+        print_engine_doctor()
+        return 0
+    if not args.input:
+        parser.error("input is required")
+    if not args.output:
+        parser.error("--output is required")
+
+    if args.target_width <= 0 or args.target_height <= 0:
+        parser.error("--target-width and --target-height must be positive")
+    if args.min_component_area <= 0 or args.max_candidates <= 0:
+        parser.error("candidate limits must be positive")
+    if args.auto_anchor_limit < 1:
+        parser.error("--auto-anchor-limit must be at least 1")
 
     input_path = Path(args.input)
     files = image_files(input_path)
@@ -581,38 +858,84 @@ def main() -> int:
     )
     annotated_dir.mkdir(parents=True, exist_ok=True)
 
-    pages = [
-        analyze_image(
-            path,
-            page_number=index,
-            annotated_dir=annotated_dir,
-            target_width=args.target_width,
-            target_height=args.target_height,
-            min_component_area=args.min_component_area,
-            max_candidates=args.max_candidates,
-            auto_anchor_limit=args.auto_anchor_limit,
-        )
-        for index, path in enumerate(files, start=1)
-    ]
+    analyze_kwargs = dict(
+        annotated_dir=annotated_dir,
+        target_width=args.target_width,
+        target_height=args.target_height,
+        min_component_area=args.min_component_area,
+        max_candidates=args.max_candidates,
+        auto_anchor_limit=args.auto_anchor_limit,
+        fit_mode=args.fit_mode,
+    )
+    worker_count = args.jobs if args.jobs > 0 else (os.cpu_count() or 1)
+    worker_count = max(1, min(worker_count, len(files)))
+
+    indexed_files = list(enumerate(files, start=1))
+    results_by_index: dict[int, dict] = {}
+    failed_pages = []
+
+    def record_failure(index: int, path: Path, exc: BaseException) -> None:
+        failed_pages.append({"page": index, "image": str(path), "error": str(exc)})
+        print(f"warning: failed to analyze {path}: {exc}", file=sys.stderr)
+
+    total = len(indexed_files)
+    if worker_count == 1:
+        for index, path in indexed_files:
+            if args.verbose:
+                print(f"page {index}/{total} ({path.name})", file=sys.stderr)
+            try:
+                results_by_index[index] = analyze_image(
+                    path, page_number=index, **analyze_kwargs
+                )
+            except IMAGE_FAILURE_ERRORS as exc:  # Continue the batch; report the failed image.
+                record_failure(index, path, exc)
+    else:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            future_to_item = {
+                executor.submit(analyze_image, path, page_number=index, **analyze_kwargs): (
+                    index,
+                    path,
+                )
+                for index, path in indexed_files
+            }
+            completed = 0
+            for future in as_completed(future_to_item):
+                index, path = future_to_item[future]
+                if args.verbose:
+                    completed += 1
+                    print(f"page {completed}/{total} done ({path.name})", file=sys.stderr)
+                try:
+                    results_by_index[index] = future.result()
+                except IMAGE_FAILURE_ERRORS as exc:  # Continue the batch; report the failed image.
+                    record_failure(index, path, exc)
+
+    # Reassemble deterministically by page index so the output is identical to the
+    # serial run regardless of worker completion order.
+    pages = [results_by_index[index] for index in sorted(results_by_index)]
+    failed_pages.sort(key=lambda item: item["page"])
 
     result = {
         "settings": {
+            "schemaVersion": "2.0",
             "targetWidth": args.target_width,
             "targetHeight": args.target_height,
             "minComponentArea": args.min_component_area,
             "maxCandidates": args.max_candidates,
             "autoAnchorLimit": args.auto_anchor_limit,
-            "note": "Candidates and auto anchors are measurement aids. Validate them with a rendered calibration overlay before writing visual-extraction.",
+            "fitMode": args.fit_mode,
+            "measurementEngine": measurement_engine(),
+            "note": (
+                "Candidates and auto anchors are measurement aids. Validate them with a "
+                "rendered calibration overlay before writing visual-extraction."
+            ),
         },
         "pages": pages,
+        "failedPages": failed_pages,
     }
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(result, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    write_json(output_path, result)
+    make_stdout_robust()
     print(output_path)
-    return 0
+    return 0 if pages else 2
 
 
 if __name__ == "__main__":
