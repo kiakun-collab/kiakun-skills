@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import path from "node:path";
 import process from "node:process";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_OUTPUT_ROOT,
   addOutputIndex,
@@ -147,9 +149,7 @@ async function requestAtlasEdit(config, prompt, options) {
   );
 }
 
-async function run() {
-  const config = parseArgs(process.argv.slice(2));
-  if (config.help) return help();
+export async function editImages(config) {
   if (config.images.length === 0 && config.urls.length === 0) {
     throw new Error("Provide at least one --image or --url.");
   }
@@ -157,7 +157,7 @@ async function run() {
     throw new Error("Do not mix --image and --url in the same request.");
   }
 
-  await loadAmbientEnv();
+  if (!config.skipEnvLoad) await loadAmbientEnv();
   const prompt = await readPromptInput(config.prompt, config.promptFile);
   const referenceCount = config.images.length + config.urls.length;
   const options = resolveImageOptions(config, { referenceCount });
@@ -165,7 +165,7 @@ async function run() {
     sourceType: config.images.length > 0 ? "files" : "urls",
     referenceCount,
   });
-  if (config.dryRun) return printJson(plan);
+  if (config.dryRun) return plan;
 
   const hint = slugify(prompt.split(/\s+/).slice(0, 8).join(" "), "edited-image");
   const promptPath = await savePrompt(prompt, config.promptOutput, hint);
@@ -197,28 +197,37 @@ async function run() {
   }
   const imageSummary = summarizeSavedImages(images, savedImages, options.size);
 
-  if (config.json) {
-    return printJson({
-      ...plan,
-      usedProvider,
-      fallbackFrom,
-      savedImages,
-      savedPrompt: promptPath,
-      ...imageSummary,
-      apiResponse:
-        usedProvider === "atlascloud"
-          ? {
-              predictionId: response.predictionId,
-              imageCount: images.length,
-              hasNsfwContents: response.hasNsfwContents,
-            }
-          : responseSummary(response),
-    });
-  }
-  console.log(savedImages.join("\n"));
+  return {
+    ...plan,
+    usedProvider,
+    fallbackFrom,
+    savedImages,
+    savedPrompt: promptPath,
+    ...imageSummary,
+    apiResponse:
+      usedProvider === "atlascloud"
+        ? {
+            predictionId: response.predictionId,
+            imageCount: images.length,
+            hasNsfwContents: response.hasNsfwContents,
+          }
+        : responseSummary(response),
+  };
 }
 
-run().catch((error) => {
+async function run() {
+  const config = parseArgs(process.argv.slice(2));
+  if (config.help) return help();
+  const result = await editImages(config);
+  if (config.json || config.dryRun) return printJson(result);
+  console.log(result.savedImages.join("\n"));
+}
+
+function isCliEntry() {
+  return process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+}
+
+if (isCliEntry()) run().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 });

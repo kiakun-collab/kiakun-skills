@@ -89,7 +89,8 @@ Per-task fields: `prompt` or `promptfile`, `profile`, `model`, `size`, `quality`
 
 Batch flags: `--concurrency <n>` (default 2, keeps clear of rate limits), `--output-dir <dir>`
 (base for auto-named outputs), `--dry-run`, `--json`. Batch continues past a failed task and
-prints a summary of successes and failures at the end.
+prints a summary of successes and failures at the end. Batch runs generate/edit tasks in-process,
+so it avoids starting a fresh Node.js child process for every image.
 
 Auto-named outputs include milliseconds plus a process-local counter, so parallel or rapid
 same-prompt tasks do not overwrite each other by default.
