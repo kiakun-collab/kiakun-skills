@@ -8,6 +8,26 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 
 ## 最新更新
 
+### 2026-07-05：新增 `html-to-pptx` HTML 转可编辑 PPTX Skill
+
+新增把 AI 生成的**固定比例 HTML 页面**转成高还原度、高可编辑度 PPTX 的独立 skill。与图片型复刻不同,它走**浏览器渲染 + DOM 几何提取**路线,直接测最终盒子而不解析布局语义。
+
+- **五段流水线**:`extract_html.py`（Playwright chromium,1280×720 视口,DPR=2 截图,`document.fonts.ready` 后测几何/逐行文字/样式）→ `build_layout_spec.py`（角色分类、同 bounds 合并、语义分组、可表达性评分、fontMap）→ `build_pptx.py`（python-pptx + 直写 OXML 渐变/阴影/圆角/旋转/恒等变换组）→ `render_pptx_com.py`（PowerPoint COM 导出 2560×1440,规避僵尸进程）→ `qa_gate.py`（全页 SSIM + 逐元素 + 文字折行双门禁 + ≤3 轮自动返修）。
+- **三个硬目标**:超高还原度(QA 双门禁)、超高可编辑度(文字=原生文本框、形状=原生 autoshape、图片=独立对象,仅不可表达元素才烘焙且逐个记 `bakedReason`)、干净整洁(无冗余 wrapper、同 bounds 合并、z-order 正确)。
+- **可编辑度优先**:文字**绝不烘焙**,返修只加宽框/微调字号;非文字视觉差异大才最小降级为烘焙 PNG(Playwright 按 DOM 路径 `element_handle.screenshot()` 补截)。
+- QA 工具默认路径复用同级 `ppt-rebuild-workflow/scripts`(`HTML2PPTX_QA_TOOLKIT` 可覆盖)。`run_pipeline.py` 一键驱动;离线组 37 测试 + COM 组 4 测试(`skipif` 隔离)全绿。
+- 环境前置:PowerPoint(Office16)已激活 + 交互式会话 + Playwright chromium。契约见 `references/pipeline-contracts.md`。
+
+### 2026-07-05：`ppt-rebuild-workflow` P0–P5 优化(性能 / 健壮性 / 去重 / 功能 / 文档)
+
+对 PPT 重构 skill 做了一轮系统优化,测试从 37 → 64 全绿:
+
+- **去重与依赖**:抽取共享模块 `_pptx_common` / `_image_common` / `_io_common`,新增 `pyproject.toml`。
+- **性能**:`extract_reference_measurements.py` 逐页并行化(`--jobs`,并行/串行逐字节一致);calibrate 无 numpy 回退路径 2.5× 提速并补齐此前零覆盖的匹配路径测试。
+- **健壮性/契约**:修复 calibrate 与 make_comparison 对同一文件名算出不同页码的契约 bug;收窄过宽 `except`;CJK 叠加字体系统探测;`make_comparison --allow-missing`、`calibrate --verbose`。
+- **功能**:新增顶层驱动器 `run_pipeline.py`、`--doctor` 引擎自检、`--verbose` 进度、audit 安静模式。
+- **文档**:新建 `qa-gates.md` 门禁单一事实源、16:9 降级声明、模板漂移修正、字体候选种子规则。
+
 ### 2026-06-22：新增 `player-interaction-design` 玩家互动设计 Skill
 
 新增面向游戏 UI、玩法互动、引导、挑战链路和失败恢复的玩家互动设计 skill。它要求 Agent 在实现、拆任务包或写验收前先写“玩家互动合同”，明确玩家当前阶段、入口、第一眼信息、主操作、成功反馈、阻断原因、恢复路径、下一步和 `not_proven`。
@@ -59,6 +79,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
 | **ppt-rebuild-workflow** | `skills/ppt-rebuild-workflow/` | PPT 重构工作流 | Mode A-E 路由、语义验收、自动坐标校准、视觉抽取、富文本、资产策略、复杂过渡与分级 QA |
+| **html-to-pptx** | `skills/html-to-pptx/` | HTML 转可编辑 PPTX | 浏览器渲染 + DOM 几何提取、角色分类与整洁扁平化、原生对象构建、PowerPoint COM 渲染、SSIM 双门禁与自动返修 |
 | **game-ui-asset-pipeline** | `skills/game-ui-asset-pipeline/` | 游戏 UI 资产流水线 | 生成、清理、切片、验证并导入 Godot 游戏 UI 图标、HUD glyph、九宫格面板和按钮皮肤 |
 | **player-interaction-design** | `skills/player-interaction-design/` | 游戏玩家互动设计 | 先写玩家入口、主操作、可见反馈、失败恢复和证据层级合同 |
 | **gpt-image-2-api** | `skills/gpt-image-2-api/` | GPT Image 2 API | 日常默认标准版，复杂、高精度、多参考图或受支持的 2K/4K 规格时升级 VIP |
@@ -73,6 +94,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 - [uv](https://docs.astral.sh/uv/) 包管理器
 - Google Chrome 浏览器（小红书技能需要）
 - Node.js >= 18（`gpt-image-2-api` 技能需要）
+- Playwright chromium + 已激活的 PowerPoint（Office16，Windows；`html-to-pptx` 技能的渲染与 QA 需要）
 
 ### 安装
 
@@ -99,6 +121,7 @@ cp -r skills/chinese-first-dialog ~/.claude/skills/
 cp -r skills/cc-switch-claude-provider ~/.claude/skills/
 cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
 cp -r skills/ppt-rebuild-workflow ~/.claude/skills/
+cp -r skills/html-to-pptx ~/.claude/skills/
 cp -r skills/game-ui-asset-pipeline ~/.claude/skills/
 cp -r skills/player-interaction-design ~/.claude/skills/
 cp -r skills/gpt-image-2-api ~/.claude/skills/
