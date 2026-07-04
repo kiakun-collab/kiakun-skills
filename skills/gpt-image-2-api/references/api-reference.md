@@ -23,18 +23,64 @@ Models:
 | Model | Output tier | Quality |
 |---|---|---|
 | `gpt-image-2` | Up to 1K | omit |
-| `gpt-image-2-max` | Provider create sizes / edit ratios | omit for aifast create/edit; use model choice for max quality |
+| `gpt-image-2-max` | aifast VIP/max 1K, 2K, and 4K presets / edit ratios | omit for aifast generation by default; use model choice for max quality |
 
 `gpt-image-2-vip` is retired upstream. The scripts still accept it as a `--model`/manifest alias and
 silently map it to `gpt-image-2-max`.
 
-Create endpoint constraints from the provider OpenAPI:
+Create endpoint constraints from the provider OpenAPI and live probes:
 
 - JSON body should use `model`, `prompt`, `n`, and `size`.
-- Do not send `quality` or `response_format`.
-- Supported create sizes are `auto`, `1024x1024`, `1536x1024`, and `1024x1536`.
-- CLI ratio tokens are mapped before request: square -> `1024x1024`, landscape -> `1536x1024`,
-  portrait -> `1024x1536`.
+- Do not send `response_format`; the gateway may return either `data[].url` or `data[].b64_json`.
+- The aifast document says `quality` is valid for VIP/max. Live probes on 2026-07-04 showed
+  `quality:auto`/`quality:high` can make max generation disconnect for 2K/4K sizes while the same
+  size succeeds without `quality`, so generation omits it by default.
+- Standard `gpt-image-2` supported create sizes are `auto`, `256x256`, `512x512`, `1024x1024`,
+  `1280x720`, `720x1280`, `1536x1024`, `1024x1536`, `1792x1024`, and `1024x1792`.
+- VIP/max `gpt-image-2-max` follows the aifast VIP table:
+
+| Ratio | 1K | 2K | 4K |
+|---|---:|---:|---:|
+| `1:1` | `1024x1024` | `2048x2048` | `2880x2880` |
+| `16:9` | `1280x720` | `2560x1440` | `3840x2160` |
+| `9:16` | `720x1280` | `1440x2560` | `2160x3840` |
+| `4:3` | `1152x864` | `2304x1728` | `3264x2448` |
+| `3:4` | `864x1152` | `1728x2304` | `2448x3264` |
+| `3:2` | `1248x832` | `2496x1664` | `3504x2336` |
+| `2:3` | `832x1248` | `1664x2496` | `2336x3504` |
+| `5:4` | `1120x896` | `2240x1792` | `3200x2560` |
+| `4:5` | `896x1120` | `1792x2240` | `2560x3200` |
+| `21:9` | `1456x624` | `3024x1296` | `3696x1584` |
+
+Observed `gpt-image-2-max` generation behavior from live probes:
+
+- `1440x2560` without `quality` returns `1440x2560`; `1440x2560 + quality:auto` also succeeded
+  once, while `1440x2560 + quality:high` disconnected.
+- `2560x1440` without `quality` returns `2560x1440`; `2560x1440 + quality:auto` disconnected.
+- `720x1280 + quality:auto` returned `720x1280`; `1280x720 + quality:high` disconnected.
+- `1024x1536` is accepted but returns `1664x2496`, so the skill now reports the expected max preset
+  instead of the literal standard create size.
+- Raw `9:16` returned `1024x1024`; the skill maps ratios client-side instead of submitting ratio
+  tokens for max generation.
+- `2160x3840` disconnected at the POST stage with and without `quality`; it remains a documented
+  aifast VIP/max size, but should be treated as higher-risk than the 2K presets.
+
+Max generation ratio mapping:
+
+- `1:1` -> `2048x2048`
+- `16:9` -> `2560x1440`
+- `9:16` -> `1440x2560`
+- `4:3` -> `2304x1728`
+- `3:4` -> `1728x2304`
+- `3:2` -> `2496x1664`
+- `2:3` -> `1664x2496`
+- `5:4` -> `2240x1792`
+- `4:5` -> `1792x2240`
+- `21:9` -> `3024x1296`
+
+Explicit pixel sizes are sent as-is when they are in the documented VIP/max table. Standard create
+sizes such as `1024x1536` are promoted to their 2K VIP/max counterpart when the selected model is
+`gpt-image-2-max`.
 
 Edit endpoint size tokens:
 
@@ -92,8 +138,8 @@ When VIP falls back to AtlasCloud, unsupported VIP sizes are mapped conservative
 
 ## Response Format
 
-- Generation omits `response_format` and `quality`, because the copied provider OpenAPI for
-  `/v1/images/generations` does not define either field for GPT Image 2.
+- Generation omits `response_format` and omits `quality` by default. The aifast VIP/max document
+  lists `quality`, but live probes showed it can make otherwise-valid max generations disconnect.
 - The scripts can save both `data[].url` and `data[].b64_json`.
 - URL downloads for generated images, Atlas outputs, and remote reference images use
   `OPENAI_IMAGE_MAX_RETRIES`; 5xx/429/network failures retry with exponential backoff, while
@@ -147,6 +193,7 @@ ATLASCLOUD_POLL_TIMEOUT_MS=300000
 GPT_IMAGE_PROFILE=auto
 GPT_IMAGE_GENERATION_SIZE=1024x1024
 GPT_IMAGE_STANDARD_SIZE=1024x1024
+GPT_IMAGE_VIP_GENERATION_SIZE=2048x2048
 GPT_IMAGE_VIP_SIZE=2048x2048
 GPT_IMAGE_VIP_QUALITY=high
 GPT_IMAGE_ATLAS_FALLBACK=true

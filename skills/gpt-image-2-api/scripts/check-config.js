@@ -6,6 +6,7 @@ import {
   DEFAULT_ATLAS_POLL_TIMEOUT_MS,
   DEFAULT_STANDARD_SIZE,
   DEFAULT_TIMEOUT_MS,
+  DEFAULT_VIP_GENERATION_SIZE,
   DEFAULT_VIP_QUALITY,
   DEFAULT_VIP_SIZE,
   ATLAS_MODEL,
@@ -31,7 +32,16 @@ const result = {
       process.env.GPT_IMAGE_STANDARD_SIZE ||
       DEFAULT_STANDARD_SIZE,
     quality: null,
-    note: "create endpoint omits quality and supports auto/1024x1024/1536x1024/1024x1536",
+    note: "standard generation uses documented 1K create sizes; max generation uses aifast VIP/max presets",
+  },
+  vipGeneration: {
+    model: VIP_MODEL,
+    size:
+      process.env.GPT_IMAGE_VIP_GENERATION_SIZE ||
+      process.env.GPT_IMAGE_VIP_SIZE ||
+      process.env.GPT_IMAGE_HD_SIZE ||
+      DEFAULT_VIP_GENERATION_SIZE,
+    quality: null,
   },
   standard: {
     model: STANDARD_MODEL,
@@ -75,6 +85,7 @@ else {
   console.log(`atlasBaseUrl   : ${result.atlasBaseUrl}`);
   console.log(`defaultProfile : ${result.defaultProfile}`);
   console.log(`generation     : ${result.generation.size} / quality omitted`);
+  console.log(`vipGeneration  : ${result.vipGeneration.model} / ${result.vipGeneration.size} / quality omitted`);
   console.log(`standard       : ${result.standard.model} / ${result.standard.size}`);
   console.log(`vip            : ${result.vip.model} / ${result.vip.size} / ${result.vip.quality}`);
   console.log(

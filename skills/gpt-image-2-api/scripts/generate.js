@@ -33,7 +33,7 @@ Required input (choose one):
 Routing and image parameters:
   --profile <name>         auto | standard | vip (hd is a vip compatibility alias)
   --model <name>           Explicit gpt-image-2 or gpt-image-2-max override
-  --size <preset>          auto, 1024x1024, 1536x1024, 1024x1536, or a ratio mapped to these
+  --size <preset>          Standard 1K preset, VIP/max 1K/2K/4K preset, or ratio mapped to a preset
   --quality <level>        Route hint only for generation; selects gpt-image-2-max, not an API field
   --n <count>              Number of images, 1-10 (default: 1)
 
