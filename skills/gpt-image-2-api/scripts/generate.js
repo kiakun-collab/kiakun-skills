@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_OUTPUT_ROOT,
   addOutputIndex,
@@ -80,18 +82,15 @@ function parseArgs(argv) {
   return config;
 }
 
-async function run() {
-  const config = parseArgs(process.argv.slice(2));
-  if (config.help) return help();
-
-  await loadAmbientEnv();
+export async function generateImage(config) {
+  if (!config.skipEnvLoad) await loadAmbientEnv();
   const prompt = await readPromptInput(config.prompt, config.promptFile);
   const options = resolveImageOptions(config, { operation: "generate" });
   if (options.tier === "atlas") {
     throw new Error("AtlasCloud fallback uses an edit-only model and requires at least one reference image; use edit.js.");
   }
   const plan = publicPlan("generate", options);
-  if (config.dryRun) return printJson(plan);
+  if (config.dryRun) return plan;
 
   const hint = slugify(prompt.split(/\s+/).slice(0, 8).join(" "), "generated-image");
   const promptPath = await savePrompt(prompt, config.promptOutput, hint);
@@ -119,23 +118,32 @@ async function run() {
   }
   const imageSummary = summarizeSavedImages(images, savedImages, options.size);
 
-  if (config.json) {
-    return printJson({
-      ...plan,
-      savedImages,
-      savedPrompt: promptPath,
-      ...imageSummary,
-      apiResponse: {
-        requestCount: responseSummaries.length,
-        imageCount: images.length,
-        responses: responseSummaries,
-      },
-    });
-  }
-  console.log(savedImages.join("\n"));
+  return {
+    ...plan,
+    savedImages,
+    savedPrompt: promptPath,
+    ...imageSummary,
+    apiResponse: {
+      requestCount: responseSummaries.length,
+      imageCount: images.length,
+      responses: responseSummaries,
+    },
+  };
 }
 
-run().catch((error) => {
+async function run() {
+  const config = parseArgs(process.argv.slice(2));
+  if (config.help) return help();
+  const result = await generateImage(config);
+  if (config.json || config.dryRun) return printJson(result);
+  console.log(result.savedImages.join("\n"));
+}
+
+function isCliEntry() {
+  return process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+}
+
+if (isCliEntry()) run().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 });

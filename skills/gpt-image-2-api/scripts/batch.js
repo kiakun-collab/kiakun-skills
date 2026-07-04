@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 import process from "node:process";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import { printJson, slugify } from "./shared.js";
+import { editImages } from "./edit.js";
+import { generateImage } from "./generate.js";
+import { loadAmbientEnv, printJson, slugify } from "./shared.js";
 
-const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SHARED_KEYS = ["profile", "model", "size", "quality", "n"];
 
 function help() {
@@ -116,29 +115,30 @@ function toArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
-function buildTaskArgs(task, index, config) {
+function buildTaskConfig(task, index, config) {
   const merged = { ...config.shared, ...task };
   const images = toArray(task.images);
   const urls = toArray(task.urls);
   const isEdit = images.length > 0 || urls.length > 0;
 
-  if (!merged.prompt && !merged.promptfile) {
+  const promptFile = merged.promptFile ?? merged.promptfile;
+  if (!merged.prompt && !promptFile) {
     throw new Error(`Task ${index + 1} needs a prompt or promptfile.`);
   }
-  if (merged.prompt && merged.promptfile) {
+  if (merged.prompt && promptFile) {
     throw new Error(`Task ${index + 1} has both prompt and promptfile.`);
   }
   if (images.length > 0 && urls.length > 0) {
     throw new Error(`Task ${index + 1} mixes images and urls.`);
   }
 
-  const args = [];
-  if (merged.prompt) args.push("--prompt", String(merged.prompt));
-  if (merged.promptfile) args.push("--promptfile", String(merged.promptfile));
+  const taskConfig = {};
+  if (merged.prompt) taskConfig.prompt = String(merged.prompt);
+  if (promptFile) taskConfig.promptFile = String(promptFile);
   for (const key of ["profile", "model", "size", "quality"]) {
-    if (merged[key] !== undefined) args.push(`--${key}`, String(merged[key]));
+    if (merged[key] !== undefined) taskConfig[key] = String(merged[key]);
   }
-  if (!isEdit && merged.n !== undefined) args.push("--n", String(merged.n));
+  if (!isEdit && merged.n !== undefined) taskConfig.n = String(merged.n);
 
   let output = merged.output;
   if (!output && config.outputDir) {
@@ -151,27 +151,13 @@ function buildTaskArgs(task, index, config) {
     );
     output = path.join(config.outputDir, `${String(index + 1).padStart(3, "0")}-${hint}.png`);
   }
-  if (output) args.push("--output", String(output));
+  if (output) taskConfig.output = String(output);
+  if (isEdit) {
+    taskConfig.images = images.map(String);
+    taskConfig.urls = urls.map(String);
+  }
 
-  for (const image of images) args.push("--image", String(image));
-  for (const url of urls) args.push("--url", String(url));
-
-  return { script: isEdit ? "edit.js" : "generate.js", operation: isEdit ? "edit" : "generate", args };
-}
-
-function runScript(script, args) {
-  return new Promise((resolve) => {
-    const child = spawn(process.execPath, [path.join(SCRIPT_DIR, script), ...args], {
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => (stdout += chunk));
-    child.stderr.on("data", (chunk) => (stderr += chunk));
-    child.on("error", (error) => resolve({ code: 1, stdout, stderr: error.message }));
-    child.on("close", (code) => resolve({ code, stdout, stderr }));
-  });
+  return { operation: isEdit ? "edit" : "generate", config: taskConfig };
 }
 
 async function runPool(items, limit, worker) {
@@ -197,23 +183,25 @@ async function run() {
     throw new Error("--concurrency must be an integer >= 1.");
   }
 
+  await loadAmbientEnv();
   const tasks = await loadTasks(config);
-  const built = tasks.map((task, index) => buildTaskArgs(task, index, config));
+  const built = tasks.map((task, index) => buildTaskConfig(task, index, config));
 
   const results = await runPool(built, concurrency, async (task, index) => {
-    const args = config.dryRun ? [...task.args, "--dry-run"] : [...task.args, "--json"];
-    const { code, stdout, stderr } = await runScript(task.script, args);
     const base = { index: index + 1, operation: task.operation };
-    if (code === 0) {
-      let data = null;
-      try {
-        data = JSON.parse(stdout.trim());
-      } catch {
-        // generate/edit fall back to a plain path list without --json; keep raw.
-      }
-      return { ...base, ok: true, result: data, savedImages: data?.savedImages ?? null, raw: data ? undefined : stdout.trim() };
+    try {
+      const taskOptions = { ...task.config, dryRun: config.dryRun, json: true, skipEnvLoad: true };
+      const data = task.operation === "edit"
+        ? await editImages(taskOptions)
+        : await generateImage(taskOptions);
+      return { ...base, ok: true, result: data, savedImages: data?.savedImages ?? null };
+    } catch (error) {
+      return {
+        ...base,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
-    return { ...base, ok: false, error: (stderr || stdout).trim() || `exited ${code}` };
   });
 
   const succeeded = results.filter((r) => r.ok);
@@ -232,7 +220,7 @@ async function run() {
 
   for (const r of results) {
     if (r.ok) {
-      const saved = r.savedImages ? r.savedImages.join(", ") : r.raw || "(dry-run)";
+      const saved = r.savedImages ? r.savedImages.join(", ") : "(dry-run)";
       console.log(`[${r.index}] ${r.operation} OK  ${saved}`);
     } else {
       console.log(`[${r.index}] ${r.operation} FAIL  ${r.error}`);
