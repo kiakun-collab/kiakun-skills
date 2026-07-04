@@ -626,3 +626,125 @@ test("VIP edit falls back to AtlasCloud after upstream failure", async () => {
     await rm(cwd, { recursive: true, force: true });
   }
 });
+
+test("batch promptlist dry-run routes every non-empty line", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "batch-promptlist-"));
+  try {
+    await writeFile(
+      path.join(cwd, "prompts.txt"),
+      "a red fox in snow\n# a comment line\n\na blue whale at dusk\n",
+    );
+    const { stdout } = await runNode(
+      "batch.js",
+      ["--promptlist", "prompts.txt", "--dry-run", "--json"],
+      cwd,
+      { OPENAI_API_KEY: "", GPT_IMAGE_PROFILE: "auto", HOME: cwd, USERPROFILE: cwd },
+    );
+    const summary = JSON.parse(stdout);
+    assert.equal(summary.total, 2);
+    assert.equal(summary.succeeded, 2);
+    assert.equal(summary.results[0].operation, "generate");
+    assert.equal(summary.results[0].result.model, "gpt-image-2");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("batch manifest runs mixed generate and edit tasks", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "batch-manifest-"));
+  const seen = [];
+  try {
+    await writeFile(path.join(cwd, "one.png"), PNG);
+    await writeFile(
+      path.join(cwd, "tasks.json"),
+      JSON.stringify([
+        { prompt: "text image", output: "gen.png" },
+        { prompt: "edit it", images: ["one.png"], output: "edited.png" },
+      ]),
+    );
+    await withGateway(
+      async (request, response) => {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        seen.push(request.url);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      async (baseUrl) => {
+        const { stdout } = await runNode(
+          "batch.js",
+          ["--batch", "tasks.json", "--concurrency", "1", "--json"],
+          cwd,
+          testEnv(baseUrl),
+        );
+        const summary = JSON.parse(stdout);
+        assert.equal(summary.total, 2);
+        assert.equal(summary.succeeded, 2);
+        assert.equal(summary.failed, 0);
+      },
+    );
+    assert.ok(seen.includes("/v1/images/generations"));
+    assert.ok(seen.includes("/v1/images/edits"));
+    assert.deepEqual(await readFile(path.join(cwd, "gen.png")), PNG);
+    assert.deepEqual(await readFile(path.join(cwd, "edited.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("batch continues past a failed task and reports it", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "batch-continue-"));
+  try {
+    await writeFile(
+      path.join(cwd, "tasks.json"),
+      JSON.stringify([
+        { prompt: "ok image", output: "ok.png" },
+        { prompt: "broken edit", images: ["missing.png"], output: "bad.png" },
+      ]),
+    );
+    await withGateway(
+      async (request, response) => {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      async (baseUrl) => {
+        const { stdout } = await runNode(
+          "batch.js",
+          ["--batch", "tasks.json", "--concurrency", "1", "--json"],
+          cwd,
+          testEnv(baseUrl),
+        );
+        const summary = JSON.parse(stdout);
+        assert.equal(summary.total, 2);
+        assert.equal(summary.succeeded, 1);
+        assert.equal(summary.failed, 1);
+        const failure = summary.results.find((r) => !r.ok);
+        assert.match(failure.error, /not found/);
+      },
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("batch rejects providing both inputs", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "batch-both-"));
+  try {
+    await writeFile(path.join(cwd, "prompts.txt"), "one\n");
+    await writeFile(path.join(cwd, "tasks.json"), "[]");
+    await assert.rejects(
+      () =>
+        runNode(
+          "batch.js",
+          ["--promptlist", "prompts.txt", "--batch", "tasks.json"],
+          cwd,
+          { OPENAI_API_KEY: "", HOME: cwd, USERPROFILE: cwd },
+        ),
+      /exactly one input/,
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
