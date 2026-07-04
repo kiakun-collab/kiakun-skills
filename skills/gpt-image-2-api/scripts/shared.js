@@ -2,13 +2,16 @@ import path from "node:path";
 import process from "node:process";
 import { homedir } from "node:os";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 export const DEFAULT_OUTPUT_ROOT = "gpt-image-2-output";
 export const DEFAULT_PROMPT_DIR = path.join(DEFAULT_OUTPUT_ROOT, "prompts");
 export const DEFAULT_BASE_URL = "https://aifast.site/v1";
 export const DEFAULT_ATLAS_BASE_URL = "https://api.atlascloud.ai/api/v1/model";
 export const STANDARD_MODEL = "gpt-image-2";
-export const VIP_MODEL = "gpt-image-2-vip";
+export const VIP_MODEL = "gpt-image-2-max";
+// Retired upstream; accepted as an input alias so old manifests keep working.
+export const LEGACY_VIP_MODEL = "gpt-image-2-vip";
 export const ATLAS_MODEL = "openai/gpt-image-2/edit";
 export const HD_MODEL = ATLAS_MODEL;
 export const DEFAULT_PROFILE = "auto";
@@ -25,6 +28,7 @@ export const DEFAULT_MAX_RETRIES = 2;
 export const DEFAULT_ATLAS_POLL_INTERVAL_MS = 2_000;
 export const DEFAULT_ATLAS_POLL_TIMEOUT_MS = 300_000;
 export const MAX_GENERATION_COUNT = 10;
+export const SKILL_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const VALID_PROFILES = new Set(["auto", "standard", "vip", "hd", "atlas"]);
 const VALID_QUALITIES = new Set(["auto", "low", "medium", "high"]);
@@ -46,6 +50,7 @@ const RATIO_SIZES = new Set([
   "3:1",
   "1:3",
 ]);
+const GENERATION_PIXEL_SIZES = new Set(["auto", "1024x1024", "1536x1024", "1024x1536"]);
 const STANDARD_PIXEL_SIZES = new Set([
   "256x256",
   "512x512",
@@ -120,6 +125,8 @@ export async function loadAmbientEnv() {
     path.join(process.cwd(), ".env"),
     path.join(process.cwd(), ".gateway.env"),
     path.join(homedir(), ".gateway.env"),
+    path.join(SKILL_ROOT, ".env"),
+    path.join(SKILL_ROOT, ".gateway.env"),
   ];
   for (const filePath of places) {
     const pairs = await readEnvFile(filePath);
@@ -185,13 +192,32 @@ function withOptionalTimeout(timeoutMs) {
 
 function normalizeModel(model) {
   if (!model) return null;
+  if (model === LEGACY_VIP_MODEL) return VIP_MODEL;
   if (model !== STANDARD_MODEL && model !== VIP_MODEL && model !== ATLAS_MODEL) {
     throw new Error(`model must be ${STANDARD_MODEL}, ${VIP_MODEL}, or ${ATLAS_MODEL}.`);
   }
   return model;
 }
 
-function validateSize(size, tier) {
+function generationSizeFromRatio(size) {
+  if (GENERATION_PIXEL_SIZES.has(size)) return size;
+  const match = /^(\d+):(\d+)$/.exec(size || "");
+  if (!match) return size;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (width === height) return "1024x1024";
+  return width > height ? "1536x1024" : "1024x1536";
+}
+
+function validateSize(size, tier, operation) {
+  if (operation === "generate") {
+    if (!GENERATION_PIXEL_SIZES.has(size)) {
+      throw new Error(
+        `Unsupported generation size: ${size}. The create endpoint supports auto, 1024x1024, 1536x1024, or 1024x1536. Use a ratio token such as 9:16 to map to the nearest supported size.`,
+      );
+    }
+    return;
+  }
   if (tier === "standard") {
     if (!STANDARD_PIXEL_SIZES.has(size) && !RATIO_SIZES.has(size)) {
       throw new Error(
@@ -208,16 +234,16 @@ function validateSize(size, tier) {
     }
     return;
   }
-  if (!VIP_PIXEL_SIZES.has(size)) {
+  if (!VIP_PIXEL_SIZES.has(size) && !RATIO_SIZES.has(size)) {
     throw new Error(
-      `Unsupported VIP output preset: ${size}. Use a documented 2K/4K preset such as ${DEFAULT_VIP_SIZE} or 3840x2160; arbitrary resolutions are not supported.`,
+      `Unsupported VIP output preset: ${size}. Use a documented 2K/4K preset such as ${DEFAULT_VIP_SIZE} or 3840x2160, or a documented ratio token such as 9:16; arbitrary resolutions are not supported.`,
     );
   }
 }
 
 export function resolveImageOptions(
   { profile, model, size, quality, n } = {},
-  { referenceCount = 0 } = {},
+  { referenceCount = 0, operation = "edit" } = {},
 ) {
   const rawProfile = profile || process.env.GPT_IMAGE_PROFILE || DEFAULT_PROFILE;
   const requestedProfile = rawProfile === "hd" ? "vip" : rawProfile;
@@ -271,7 +297,7 @@ export function resolveImageOptions(
     throw new Error("Two or more reference images require profile vip or profile auto.");
   }
   if (tier === "standard" && requestedQuality) {
-    throw new Error("quality is only supported by gpt-image-2-vip or AtlasCloud.");
+    throw new Error("quality is only supported by gpt-image-2-max or AtlasCloud.");
   }
   if (tier === "standard" && requestedSize && VIP_PIXEL_SIZES.has(requestedSize)) {
     throw new Error("2K/4K output presets require profile vip or profile auto.");
@@ -285,19 +311,26 @@ export function resolveImageOptions(
     throw new Error("This output size requires profile vip, profile atlas, or profile auto.");
   }
 
-  const resolvedSize =
+  let resolvedSize =
     requestedSize ||
-    (tier === "vip"
-      ? process.env.GPT_IMAGE_VIP_SIZE || process.env.GPT_IMAGE_HD_SIZE || DEFAULT_VIP_SIZE
-      : tier === "atlas"
-        ? process.env.GPT_IMAGE_ATLAS_SIZE ||
-          process.env.GPT_IMAGE_HD_SIZE ||
-          DEFAULT_ATLAS_SIZE
-        : process.env.GPT_IMAGE_STANDARD_SIZE || DEFAULT_STANDARD_SIZE);
-  validateSize(resolvedSize, tier);
+    (operation === "generate"
+      ? process.env.GPT_IMAGE_GENERATION_SIZE ||
+        process.env.GPT_IMAGE_STANDARD_SIZE ||
+        DEFAULT_STANDARD_SIZE
+      : tier === "vip"
+        ? process.env.GPT_IMAGE_VIP_SIZE || process.env.GPT_IMAGE_HD_SIZE || DEFAULT_VIP_SIZE
+        : tier === "atlas"
+          ? process.env.GPT_IMAGE_ATLAS_SIZE ||
+            process.env.GPT_IMAGE_HD_SIZE ||
+            DEFAULT_ATLAS_SIZE
+          : process.env.GPT_IMAGE_STANDARD_SIZE || DEFAULT_STANDARD_SIZE);
+  if (operation === "generate") resolvedSize = generationSizeFromRatio(resolvedSize);
+  validateSize(resolvedSize, tier, operation);
 
   const resolvedQuality =
-    tier === "vip"
+    operation === "generate"
+      ? null
+      : tier === "vip"
       ? requestedQuality ||
         process.env.GPT_IMAGE_VIP_QUALITY ||
         process.env.GPT_IMAGE_HD_QUALITY ||
@@ -369,7 +402,7 @@ export function buildAtlasEditPayload(options, { prompt, images, outputFormat = 
     images,
     output_format: outputFormat,
     prompt,
-    quality: options.quality === "auto" ? DEFAULT_ATLAS_QUALITY : options.quality,
+    quality: !options.quality || options.quality === "auto" ? DEFAULT_ATLAS_QUALITY : options.quality,
     size: atlasFallbackSize(options.size),
     moderation: "low",
   };
@@ -395,9 +428,12 @@ export function slugify(value, fallback = "image-task") {
   return ascii || fallback;
 }
 
+let lastTimestampKey = "";
+let timestampCounter = 0;
+
 function timestamp() {
   const now = new Date();
-  return [
+  const key = [
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, "0"),
     String(now.getDate()).padStart(2, "0"),
@@ -405,7 +441,11 @@ function timestamp() {
     String(now.getHours()).padStart(2, "0"),
     String(now.getMinutes()).padStart(2, "0"),
     String(now.getSeconds()).padStart(2, "0"),
+    String(now.getMilliseconds()).padStart(3, "0"),
   ].join("");
+  timestampCounter = key === lastTimestampKey ? timestampCounter + 1 : 0;
+  lastTimestampKey = key;
+  return `${key}-${timestampCounter.toString(36).padStart(2, "0")}`;
 }
 
 export function buildDefaultImagePath(operation, hint) {
@@ -698,6 +738,39 @@ export async function extractAtlasImages(outputs) {
   return Promise.all(outputs.map((url) => downloadImage(url)));
 }
 
+async function fetchBufferWithRetry(rawUrl, label) {
+  const maxRetries = parseInteger(
+    process.env.OPENAI_IMAGE_MAX_RETRIES,
+    DEFAULT_MAX_RETRIES,
+    "OPENAI_IMAGE_MAX_RETRIES",
+  );
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const response = await fetch(rawUrl);
+      if (response.ok) {
+        return {
+          bytes: Buffer.from(await response.arrayBuffer()),
+          contentType: (response.headers.get("content-type") || "").split(";")[0].trim(),
+        };
+      }
+      if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+        await sleep(retryDelay(attempt, response.headers.get("retry-after")));
+        continue;
+      }
+      throw new Error(`Failed to download ${label} (${response.status}).`);
+    } catch (error) {
+      const retryable = error instanceof TypeError;
+      if (retryable && attempt < maxRetries) {
+        await sleep(retryDelay(attempt));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error(`Failed to download ${label} after retries.`);
+}
+
 export async function downloadReferenceImage(rawUrl) {
   let url;
   try {
@@ -708,11 +781,8 @@ export async function downloadReferenceImage(rawUrl) {
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new Error(`Reference URL must use http or https: ${rawUrl}`);
   }
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to download reference image (${response.status}): ${rawUrl}`);
-  }
-  const contentType = (response.headers.get("content-type") || "").split(";")[0].trim();
+  const downloaded = await fetchBufferWithRetry(url, "reference image");
+  const contentType = downloaded.contentType;
   if (!["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
     throw new Error(
       `Reference URL must return PNG, JPEG, or WebP, received ${contentType || "unknown"}: ${rawUrl}`,
@@ -723,16 +793,15 @@ export async function downloadReferenceImage(rawUrl) {
   const basename = path.basename(url.pathname);
   const filename = basename && path.extname(basename) ? basename : `reference${extension}`;
   return {
-    bytes: Buffer.from(await response.arrayBuffer()),
+    bytes: downloaded.bytes,
     contentType,
     filename,
   };
 }
 
 async function downloadImage(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to download generated image (${response.status}).`);
-  return Buffer.from(await response.arrayBuffer());
+  const downloaded = await fetchBufferWithRetry(url, "generated image");
+  return downloaded.bytes;
 }
 
 export async function extractGeneratedImages(json) {

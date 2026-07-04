@@ -5,7 +5,7 @@
 | Route | Provider | Model | Use |
 |---|---|---|---|
 | Standard | aifast.site | `gpt-image-2` | Generation and ordinary single-reference edits |
-| VIP | aifast.site | `gpt-image-2-vip` | Primary high-resolution, multi-reference, quality-controlled route |
+| VIP | aifast.site | `gpt-image-2-max` | Primary max-model, multi-reference, and precision-sensitive route |
 | Atlas fallback | AtlasCloud | `openai/gpt-image-2/edit` | Backup for VIP edit failures and explicit `--profile atlas` |
 
 `--profile hd` maps to `vip` for compatibility with the previous AtlasCloud-only version.
@@ -23,22 +23,23 @@ Models:
 | Model | Output tier | Quality |
 |---|---|---|
 | `gpt-image-2` | Up to 1K | omit |
-| `gpt-image-2-vip` | 1K/2K/4K presets | `auto`, `low`, `medium`, `high` |
+| `gpt-image-2-max` | Provider create sizes / edit ratios | omit for aifast create/edit; use model choice for max quality |
 
-VIP preset tokens:
+`gpt-image-2-vip` is retired upstream. The scripts still accept it as a `--model`/manifest alias and
+silently map it to `gpt-image-2-max`.
 
-| Ratio | 2K | 4K |
-|---|---|---|
-| 1:1 | `2048x2048` | `2880x2880` |
-| 16:9 | `2560x1440` | `3840x2160` |
-| 9:16 | `1440x2560` | `2160x3840` |
-| 4:3 | `2304x1728` | `3264x2448` |
-| 3:4 | `1728x2304` | `2448x3264` |
-| 3:2 | `2496x1664` | `3504x2336` |
-| 2:3 | `1664x2496` | `2336x3504` |
-| 5:4 | `2240x1792` | `3200x2560` |
-| 4:5 | `1792x2240` | `2560x3200` |
-| 21:9 | `3024x1296` | `3696x1584` |
+Create endpoint constraints from the provider OpenAPI:
+
+- JSON body should use `model`, `prompt`, `n`, and `size`.
+- Do not send `quality` or `response_format`.
+- Supported create sizes are `auto`, `1024x1024`, `1536x1024`, and `1024x1536`.
+- CLI ratio tokens are mapped before request: square -> `1024x1024`, landscape -> `1536x1024`,
+  portrait -> `1024x1536`.
+
+Edit endpoint size tokens:
+
+`auto`, `1:1`, `3:2`, `2:3`, `4:3`, `3:4`, `5:4`, `4:5`, `16:9`, `9:16`, `21:9`, `9:21`,
+`2:1`, `1:2`, `3:1`, and `1:3`.
 
 ## AtlasCloud Fallback Route
 
@@ -91,11 +92,16 @@ When VIP falls back to AtlasCloud, unsupported VIP sizes are mapped conservative
 
 ## Response Format
 
-- Standard generation still requests `b64_json` for compatibility.
-- VIP generation omits `response_format` so the API returns an image URL. This avoids slow
-  high-resolution Base64 response conversion; dashboard generation time and client wall time should
-  then stay close.
+- Generation omits `response_format` and `quality`, because the copied provider OpenAPI for
+  `/v1/images/generations` does not define either field for GPT Image 2.
 - The scripts can save both `data[].url` and `data[].b64_json`.
+- URL downloads for generated images, Atlas outputs, and remote reference images use
+  `OPENAI_IMAGE_MAX_RETRIES`; 5xx/429/network failures retry with exponential backoff, while
+  ordinary 4xx failures fail immediately.
+- Multiple remote reference URLs are downloaded in parallel, then appended to multipart form data in
+  the original CLI/manifest order.
+- Auto-named output files include milliseconds plus a process-local counter to avoid same-second
+  collisions in batch/concurrent runs.
 
 ## Configuration
 
@@ -104,9 +110,12 @@ The scripts call `loadAmbientEnv()` and read settings from these files, in order
 1. `.env` in the current working directory
 2. `.gateway.env` in the current working directory
 3. `~/.gateway.env`
+4. `.env` in the skill root directory
+5. `.gateway.env` in the skill root directory
 
 Existing process environment variables win over file values. Prefer `~/.gateway.env` for a local
-agent machine and keep real keys out of this repository.
+agent machine; the skill-root files are a fallback for running scripts from another cwd. Keep real
+keys out of Git.
 
 Agent quick configuration:
 
@@ -136,6 +145,7 @@ ATLASCLOUD_POLL_INTERVAL_MS=2000
 ATLASCLOUD_POLL_TIMEOUT_MS=300000
 
 GPT_IMAGE_PROFILE=auto
+GPT_IMAGE_GENERATION_SIZE=1024x1024
 GPT_IMAGE_STANDARD_SIZE=1024x1024
 GPT_IMAGE_VIP_SIZE=2048x2048
 GPT_IMAGE_VIP_QUALITY=high
