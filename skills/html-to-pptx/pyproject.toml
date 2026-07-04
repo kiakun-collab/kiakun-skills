@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "html-to-pptx"
+version = "0.1.0"
+description = "Convert fixed-ratio AI-generated HTML pages into highly-editable, high-fidelity PPTX."
+readme = "SKILL.md"
+requires-python = ">=3.9"
+dependencies = [
+    "Pillow>=9",
+    "python-pptx>=0.6",
+    "playwright>=1.40",
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "psutil>=5.9",
+    "pywin32>=306; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+# opencv is only needed if you route QA through the sibling calibrate script.
+fast = ["opencv-python-headless>=4.6"]
+dev = ["pytest>=7"]
+
+# Flat collection of standalone scripts under scripts/, not an importable package.
+[tool.setuptools]
+packages = []
