@@ -1,3 +1,7 @@
+# 核心依赖（与 pyproject.toml [project.dependencies] 一致）
 bilibili-api-python>=1.6.0
 aiohttp>=3.9.0
-faster-whisper>=1.0.0
+
+# 可选：仅无 CC 字幕、需 Whisper 兜底时安装（对应 pyproject 的 [whisper] extra，另需系统 ffmpeg）。
+#   pip install -e ".[whisper]"   或   pip install faster-whisper>=1.0.0
+# faster-whisper>=1.0.0

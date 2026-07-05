@@ -8,6 +8,16 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 
 ## 最新更新
 
+### 2026-07-05：`bilibili-video-summary` 重构为「决策助手」（架构升级）
+
+从"下载视频数据"重构为**帮你快速判断长视频值不值得看**：核心原则「**脚本预消化 → LLM 只理解**」——脚本以最低成本拿全原始文本素材 + 预算好的统计信号，输出**≤15KB 固定量级 JSON**，由 Claude 生成"值得完整看/看高能点/看总结即可/不值得看"的决策导向报告。
+
+- **修复一批真实缺陷**：评论 API 用错类导致静默失败、字幕只拿元数据从未下载正文、不支持 AV 号、`get_info` 重复调用、无错误处理直接崩溃等（对照 Nemo2011/bilibili-api 官方源码核实）。
+- **信号聚合（差异化核心）**：弹幕词频 Top20 / 时间密度数组 / Top5 高能峰值+代表弹幕（与官方 pbp 高能进度条互印证）；热评+楼中楼（争议交锋）；点赞/收藏/投币/弹幕密度等价值信号+经验基准。
+- **优先级链**：字幕正文（主）→ Whisper 兜底（可按峰值采样转写）；B站官方 AI 小结仅作辅助分段锚点。
+- **单入口 `bilibili_digest.py`** + 24h 登录态分离缓存 + 并行限流；`bilibili_whisper.py` 修复 403（aiohttp+Referer/UA）、ffmpeg 16k 转码、按时长选模型。
+- **工程化**：`pyproject.toml` + 27 个离线单测（网络全 mock）；`SKILL.md` 重写为 JSON 契约+决策报告模板+错误指引。开发与真实验证记录见 `skills/bilibili-video-summary/DEVELOPMENT_REPORT.md`。
+
 ### 2026-07-05：新增 `html-to-pptx` HTML 转可编辑 PPTX Skill
 
 新增把 AI 生成的**固定比例 HTML 页面**转成高还原度、高可编辑度 PPTX 的独立 skill。与图片型复刻不同,它走**浏览器渲染 + DOM 几何提取**路线,直接测最终盒子而不解析布局语义。
@@ -73,7 +83,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | 技能 | 路径 | 说明 | 核心能力 |
 |------|------|------|----------|
 | **xiaohongshu** | `skills/xiaohongshu/` | 小红书自动化 | 认证登录、内容发布、搜索发现、社交互动、复合运营分析 |
-| **bilibili-video-summary** | `skills/bilibili-video-summary/` | B站视频总结 | 链接解析、字幕/弹幕/评论提取、Whisper 语音转写、结构化总结 |
+| **bilibili-video-summary** | `skills/bilibili-video-summary/` | B站视频决策助手 | 脚本预消化为 ≤15KB 信号 JSON；字幕正文/弹幕聚合(词频·密度·高能峰值)/热评楼中楼/价值信号/Whisper 兜底，LLM 出"值不值得看"决策报告 |
 | **folder-to-vector-kb** | `skills/folder-to-vector-kb/` | 文件夹向量化 | 批量文档清洗、语义 chunk 切分、元数据补全、输出 `knowledge_base.jsonl` |
 | **chinese-first-dialog** | `skills/chinese-first-dialog/` | 中文优先对话 | 默认简体中文回复，保留代码、命令、路径、配置键、API 标识符和原始错误文本 |
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
@@ -239,14 +249,14 @@ kiakun-skills/
 
 ---
 
-### bilibili-video-summary（B站视频总结）
+### bilibili-video-summary（B站视频决策助手）
 
-当用户发送 B站视频链接时，自动识别 BV/AV 号，获取视频信息、字幕、弹幕、评论，并结合 Whisper 本地语音转写生成结构化总结。
+当用户发送 B站视频链接时，`bilibili_digest.py` 拉取视频信息、字幕正文、弹幕、热评与官方 AI 小结，**在脚本内预消化为统计信号**（弹幕词频/密度/高能峰值、热评楼中楼、价值互动率），输出 ≤15KB JSON，由 Claude 生成"值得完整看 / 看高能点 / 看总结即可 / 不值得看"的决策导向报告。无 CC 字幕时用 Whisper 兜底转写（需 ffmpeg）。
 
 **典型用法：**
-> "帮我总结一下这个视频讲了什么：https://www.bilibili.com/video/BV1xx411c7mD"
+> "帮我判断这个视频值不值得看：https://www.bilibili.com/video/BV1xx411c7mD"
 
-详见 `skills/bilibili-video-summary/SKILL.md`。
+详见 `skills/bilibili-video-summary/SKILL.md`；开发与真实验证记录见 `DEVELOPMENT_REPORT.md`。
 
 ---
 

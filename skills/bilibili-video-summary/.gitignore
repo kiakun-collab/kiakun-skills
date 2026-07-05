@@ -1,0 +1,7 @@
+cookies.json
+*.log
+out_*.json
+**/__pycache__/
+**/.pytest_cache/
+**/*.egg-info/
+.cache/

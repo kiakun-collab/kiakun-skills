@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+"""B站音频 Whisper 转写（字幕兜底链路）。
+
+修复：aiohttp 下载带 Referer/UA（B站 CDN 防盗链，否则 403，BUG-2/PERF-5）；先 ffmpeg 转
+16kHz 单声道 wav 再转写（PERF-4）；按时长自动选模型；`--sample` 依据弹幕/pbp 峰值切片转写（T9）。
 """
-B站视频Whisper转写脚本
-从B站获取音频并用Whisper转写为文字
-"""
+
+from __future__ import annotations
 
 import argparse
 import asyncio
@@ -13,20 +16,47 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Try to import faster-whisper
-try:
-    from faster_whisper import WhisperModel
-    WHISPER_AVAILABLE = True
-except ImportError:
-    WHISPER_AVAILABLE = False
-    print("Warning: faster-whisper not installed. Run: pip install faster-whisper", file=sys.stderr)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bilibili_digest import extract_id, load_credential  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from bilibili_summary import video, Credential, load_cookie_credential, extract_bvid
+HEADERS = {
+    "Referer": "https://www.bilibili.com/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+}
 
 
-def install_ffmpeg():
-    """检查ffmpeg是否安装"""
+# --- 纯函数（可单测） ---------------------------------------------------
+def choose_model(duration_sec: int, override: str | None = None) -> str:
+    """按时长选模型：≤15min → small（更准），>15min → base（更快）。override 优先。"""
+    if override:
+        return override
+    return "small" if (duration_sec or 0) <= 900 else "base"
+
+
+def sample_segments(peak_times, duration_sec: int, window: int = 90, n_uniform: int = 5):
+    """峰值 → 切片窗口 [(start, dur)]；无峰值时在时长内均匀取 n 段。"""
+    duration_sec = max(0, int(duration_sec or 0))
+    if peak_times:
+        segs = []
+        for t in sorted(set(int(x) for x in peak_times)):
+            start = max(0, t - window // 2)
+            dur = window if duration_sec == 0 else min(window, max(1, duration_sec - start))
+            segs.append((float(start), float(dur)))
+        return segs
+    if duration_sec <= window:
+        return [(0.0, float(duration_sec or window))]
+    step = duration_sec / (n_uniform + 1)
+    out = []
+    for i in range(n_uniform):
+        center = step * (i + 1)
+        start = max(0, center - window / 2)
+        out.append((round(start, 1), float(min(window, duration_sec - start))))
+    return out
+
+
+# --- 网络 / ffmpeg / whisper --------------------------------------------
+def has_ffmpeg() -> bool:
     try:
         subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
         return True
@@ -34,106 +64,123 @@ def install_ffmpeg():
         return False
 
 
-def download_audio(audio_url: str, output_path: str) -> bool:
-    """下载音频"""
+async def get_audio_url(id_kind, id_value, credential=None) -> str | None:
+    from bilibili_api import video
+
+    v = (video.Video(bvid=id_value, credential=credential) if id_kind == "bvid"
+         else video.Video(aid=id_value, credential=credential))
+    info = await v.get_info()
+    cid = info["cid"]
+    duration = info.get("duration", 0)
+    dl = await v.get_download_url(cid=cid)
+    audio_list = (dl.get("dash", {}) or {}).get("audio", []) or []
+    if not audio_list:
+        return None, duration
+    best = max(audio_list, key=lambda x: x.get("bandwidth", 0))
+    return best.get("baseUrl") or best.get("base_url"), duration
+
+
+async def download_audio(url: str, out_path: str) -> bool:
+    import aiohttp
+
     try:
-        result = subprocess.run(
-            ["curl", "-L", "-o", output_path, audio_url],
-            capture_output=True,
-            timeout=120
-        )
-        return result.returncode == 0
-    except Exception as e:
-        print(f"下载失败: {e}", file=sys.stderr)
+        async with aiohttp.ClientSession(headers=HEADERS) as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    print(f"下载失败 HTTP {resp.status}", file=sys.stderr)
+                    return False
+                with open(out_path, "wb") as f:
+                    async for chunk in resp.content.iter_chunked(1 << 16):
+                        f.write(chunk)
+        return os.path.getsize(out_path) > 0
+    except Exception as exc:
+        print(f"下载异常: {exc}", file=sys.stderr)
         return False
 
 
-async def get_audio_url(bvid: str, credential=None) -> str:
-    """获取音频URL"""
-    v = video.Video(bvid=bvid, credential=credential)
-    info = await v.get_info()
-    cid = info["cid"]
-    
-    download_url = await v.get_download_url(cid=cid)
-    dash = download_url.get("dash", {})
-    
-    audio_list = dash.get("audio", [])
-    if not audio_list:
-        return None
-    
-    best_audio = max(audio_list, key=lambda x: x.get("bandwidth", 0))
-    return best_audio.get("baseUrl", "")
-
-
-def transcribe_audio(audio_path: str, model_size: str = "base", language: str = "zh") -> str:
-    """转写音频"""
-    if not WHISPER_AVAILABLE:
-        return "Error: faster-whisper not installed"
-    
-    print(f"加载Whisper模型: {model_size}...", file=sys.stderr)
-    model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    
-    print("正在转写（这可能需要几分钟）...", file=sys.stderr)
-    segments, info = model.transcribe(audio_path, language=language, beam_size=5)
-    
-    print(f"语言: {info.language}, 时长: {info.duration}s", file=sys.stderr)
-    
-    result = []
-    for segment in segments:
-        result.append(f"[{segment.start:.1f}s -> {segment.end:.1f}s] {segment.text}")
-    
-    return "\n".join(result)
-
-
-async def main():
-    parser = argparse.ArgumentParser(description="B站视频Whisper转写")
-    parser.add_argument("url", help="B站视频URL或BV号")
-    parser.add_argument("--model", default="base", choices=["tiny", "base", "small", "medium", "large"],
-                        help="Whisper模型大小 (default: base)")
-    parser.add_argument("--lang", default="zh", help="语言代码 (default: zh)")
-    parser.add_argument("--keep-audio", action="store_true", help="保留音频文件")
-    args = parser.parse_args()
-    
-    if not WHISPER_AVAILABLE:
-        print("Error: faster-whisper not installed", file=sys.stderr)
-        sys.exit(1)
-    
-    if not install_ffmpeg():
-        print("Error: ffmpeg not installed. Please install ffmpeg first.", file=sys.stderr)
-        sys.exit(1)
-    
-    bvid = extract_bvid(args.url)
-    print(f"正在处理视频: {bvid}", file=sys.stderr)
-    
-    credential = load_cookie_credential()
-    
-    # 获取音频URL
-    print("获取音频URL...", file=sys.stderr)
-    audio_url = await get_audio_url(bvid, credential)
-    if not audio_url:
-        print("Error: 无法获取音频URL", file=sys.stderr)
-        sys.exit(1)
-    
-    # 下载音频
-    with tempfile.NamedTemporaryFile(suffix=".m4s", delete=False) as f:
-        audio_path = f.name
-    
-    print(f"下载音频到 {audio_path}...", file=sys.stderr)
-    if not download_audio(audio_url, audio_path):
-        print("Error: 下载失败", file=sys.stderr)
-        os.unlink(audio_path)
-        sys.exit(1)
-    
-    # 转写
+def to_wav(src: str, dst: str, start: float | None = None, dur: float | None = None) -> bool:
+    cmd = ["ffmpeg", "-y"]
+    if start is not None:
+        cmd += ["-ss", str(start)]
+    if dur is not None:
+        cmd += ["-t", str(dur)]
+    cmd += ["-i", src, "-ar", "16000", "-ac", "1", "-f", "wav", dst]
     try:
-        print("开始转写...", file=sys.stderr)
-        transcript = transcribe_audio(audio_path, args.model, args.lang)
-        print(transcript)
-    finally:
-        if not args.keep_audio:
-            os.unlink(audio_path)
-            print(f"已删除临时音频: {audio_path}", file=sys.stderr)
+        subprocess.run(cmd, capture_output=True, check=True)
+        return os.path.getsize(dst) > 0
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return False
+
+
+def transcribe(wav_path: str, model_size: str, language: str = "zh") -> str:
+    from faster_whisper import WhisperModel
+
+    model = WhisperModel(model_size, device="cpu", compute_type="int8")
+    segments, _info = model.transcribe(wav_path, language=language, beam_size=5)
+    return "".join(seg.text for seg in segments).strip()
+
+
+async def run(args) -> int:
+    if not has_ffmpeg():
+        print(json.dumps({"ok": False, "error": {"code": "no_ffmpeg",
+              "message": "ffmpeg 未安装，无法转码/切片"}}, ensure_ascii=False))
+        return 2
+    id_kind, id_value = extract_id(args.url)
+    credential = load_credential()
+    audio_url, duration = await get_audio_url(id_kind, id_value, credential)
+    if not audio_url:
+        print(json.dumps({"ok": False, "error": {"code": "no_audio", "message": "无法获取音频流"}},
+                         ensure_ascii=False))
+        return 2
+
+    model_size = choose_model(duration, args.whisper_model)
+    with tempfile.TemporaryDirectory() as tmp:
+        raw = os.path.join(tmp, "audio.m4s")
+        if not await download_audio(audio_url, raw):
+            print(json.dumps({"ok": False, "error": {"code": "download", "message": "音频下载失败"}},
+                             ensure_ascii=False))
+            return 2
+        pieces = []
+        if args.sample:
+            peaks = json.loads(Path(args.peaks).read_text(encoding="utf-8")) if args.peaks else []
+            segs = sample_segments(peaks, duration)
+            for i, (start, dur) in enumerate(segs):
+                wav = os.path.join(tmp, f"seg{i}.wav")
+                if to_wav(raw, wav, start, dur):
+                    pieces.append({"t": start, "text": transcribe(wav, model_size, args.lang)})
+        else:
+            wav = os.path.join(tmp, "full.wav")
+            if not to_wav(raw, wav):
+                print(json.dumps({"ok": False, "error": {"code": "ffmpeg", "message": "转码失败"}},
+                                 ensure_ascii=False))
+                return 2
+            pieces.append({"t": 0.0, "text": transcribe(wav, model_size, args.lang)})
+
+    result = {"ok": True, "model": model_size, "sampled": bool(args.sample),
+              "duration_sec": duration, "segments": pieces,
+              "text": "".join(p["text"] for p in pieces)}
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="B站音频 Whisper 转写")
+    parser.add_argument("url")
+    parser.add_argument("--whisper-model", choices=["tiny", "base", "small", "medium", "large"])
+    parser.add_argument("--lang", default="zh")
+    parser.add_argument("--sample", action="store_true", help="按峰值切片转写（配 --peaks）")
+    parser.add_argument("--peaks", help="峰值时刻 JSON 文件（数字数组，单位秒）")
+    args = parser.parse_args()
+    try:
+        from faster_whisper import WhisperModel  # noqa: F401
+    except ImportError:
+        print(json.dumps({"ok": False, "error": {"code": "no_whisper",
+              "message": "faster-whisper 未安装"}}, ensure_ascii=False))
+        return 2
+    return asyncio.run(run(args))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit(main())
