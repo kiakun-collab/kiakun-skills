@@ -8,6 +8,15 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 
 ## 最新更新
 
+### 2026-07-05：`ppt-rebuild-workflow` 补充占位图/背景/字号规范（借鉴 image-ppt）
+
+从 `image-ppt-to-editable-pptx` 提炼几条关键约束补进 PPT 重构 skill：
+
+- **占位图规范**：截图/示例图/UI/照片墙/视频区默认只做**单一原生占位对象**，禁止内部拼假细节，命名带角色前缀便于审计统计与用户一键删除。
+- **背景规范**：纯色/规则渐变底色用 **PPT 页面背景格式（`<p:bg>`）**，不要用整页实心矩形当背景层；并区分"页面底色"与 Mode B/C 的"背景环境素材"。
+- **字号偶数整数 pt**：`audit_pptx_structure.py` 新增 `fontSizesPt` / `nonEvenFontSizesPt`，把 image-ppt 的"字号须偶数磅"手工包内检查**自动化**（勿用 px 判断偶数）。
+- 同步 `implementation-guardrails.md`（构建细则+报告项+常见错误）、契约文档与单测（66 全绿）。
+
 ### 2026-07-05：`bilibili-video-summary` 重构为「决策助手」（架构升级）
 
 从"下载视频数据"重构为**帮你快速判断长视频值不值得看**：核心原则「**脚本预消化 → LLM 只理解**」——脚本以最低成本拿全原始文本素材 + 预算好的统计信号，输出**≤15KB 固定量级 JSON**，由 Claude 生成"值得完整看/看高能点/看总结即可/不值得看"的决策导向报告。
