@@ -16,7 +16,7 @@
 两道门禁必须同时通过，缺一不可：
 
 1. **文字可读性**：`visualOverlapCount = 0`；原生文字不被形状/连接线/图片遮挡、穿过或挤压。`graphicFrame` 与形状/图片之间的通用叠放不纳入通用碰撞门禁，只有影响文字可读性时才按此门禁处理。
-2. **参考图还原度**：`visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。版式、构图、层级、色彩忠实于参考图，不要求像素级完全一致；即使不影响文字，对象的位置、尺度、裁切、前后层级或构图明显偏离参考图，仍可能构成视觉还原度偏差。
+2. **参考图还原度**：`visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。版式、构图、层级、色彩忠实于参考图，不要求像素级完全一致；即使不影响文字，对象的位置、尺度、裁切、前后层级或构图明显偏离参考图，仍可能构成视觉还原度偏差。还原度对照走**两路**：原始参考图 + **纯图片基线 deck 渲染（`baseline-render/`，同后端同画布，主判据）**；Mode B/C 未建基线或基线对照未过，不判还原度通过（见 [mode-selection.md](mode-selection.md) 的重构对照基线硬约束）。
 
 ## 禁裁剪/放大猜字（no crop-to-guess）
 

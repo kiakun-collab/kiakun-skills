@@ -59,7 +59,7 @@ description: Use when rebuilding slide screenshots, image-only PPTX files, AI-ge
 
 | 模式 | 用途 | 必读文件 |
 | --- | --- | --- |
-| Mode A 快版整页图 PPT | 每页一张完整图，只用于预览和方向确认 | [mode-selection.md](references/mode-selection.md) |
+| Mode A 纯图片基线 deck | 每页整页图铺满（不需参考测量）；既是"只要平铺预览"的独立交付，也是 Mode B/C 重构前必建的对照基线 | [mode-selection.md](references/mode-selection.md) |
 | Mode B 半可编辑重构 | 一张无字底图 + 可编辑文字和结构层 | [semi-editable-workflow.md](references/semi-editable-workflow.md)、[autonomous-calibration.md](references/autonomous-calibration.md)、[visual-extraction-pass.md](references/visual-extraction-pass.md) |
 | Mode C 高还原完全分层重构 | 纯背景、人物、内容图、文字、形状全部分层 | [full-layered-workflow.md](references/full-layered-workflow.md)、[autonomous-calibration.md](references/autonomous-calibration.md)、[visual-extraction-pass.md](references/visual-extraction-pass.md) |
 | Mode D 先重做参考图 | 参考图语义或版式错误时先生成候选参考图 | [mode-d-workflow.md](references/mode-d-workflow.md) |
@@ -71,11 +71,12 @@ description: Use when rebuilding slide screenshots, image-only PPTX files, AI-ge
 
 1. 冻结任务边界、输出路径、模式和 QA 等级。
 2. 先做语义验收、异常文字恢复和资产策略；若参考图语义或版式方向错误，转 Mode D。
-3. Mode B/C 建立自动坐标锁，完成逐页视觉抽取；渲染后必须运行坐标偏移计算和字体候选评分，再生成 `layout-spec` 与 `style-spec`。
-4. 构建 PPTX，先保存成品，再用同一渲染后端导出预览。
-5. 运行包内/几何审计和最终 PNG 视觉审计，执行文字可读性与参考图还原度双门禁。
-6. 首次构建记为第 0 轮，自动返修最多三轮；仍失败时执行最小自动降级，不能标记为完整通过。
-7. 交付报告中说明文件路径、页数、字体、媒体、文本对象、形状、自动降级和未完成风险。
+3. **Mode B/C 硬约束——先建纯图片基线**：从参考图产出纯图片基线 deck（Mode A 本质），用同一交付渲染后端渲染为 `baseline-render/`，兼作用户预览；若基线本身渲染异常（尺寸/色彩/裁切），先修环境再继续（兜底地板）。
+4. Mode B/C 建立自动坐标锁，完成逐页视觉抽取；渲染后必须运行坐标偏移计算和字体候选评分，再生成 `layout-spec` 与 `style-spec`。
+5. 构建 PPTX，先保存成品，再用同一渲染后端导出预览。
+6. 运行包内/几何审计和最终 PNG 视觉审计，执行文字可读性与参考图还原度双门禁；还原度必须**同时对照原始参考图与 `baseline-render/`**（同后端同画布的 apples-to-apples 主判据）。未跑基线对照或基线对照未过，不得判 Level 2/3 完整通过。
+7. 首次构建记为第 0 轮，自动返修最多三轮；仍失败时执行最小自动降级，不能标记为完整通过。
+8. 交付报告中说明文件路径、页数、字体、媒体、文本对象、形状、基线对照结果、自动降级和未完成风险。
 
 Mode B Level 2 交付前逐项完成 [level-2-delivery-checklist.md](assets/templates/level-2-delivery-checklist.md)。
 Mode C Level 3 交付前逐项完成 [level-3-delivery-checklist.md](assets/templates/level-3-delivery-checklist.md)。

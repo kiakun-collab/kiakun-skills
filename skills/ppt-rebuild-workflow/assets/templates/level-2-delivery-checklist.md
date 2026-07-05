@@ -26,6 +26,8 @@
 - [ ] `textFrameIntersections = 0`。
 - [ ] 细长形状与文本框相交候选为 0，或逐项给出视觉安全证据。
 - [ ] `unresolvedTextFrameCount = 0`，组合/旋转对象的 `geometryCoverageRisks` 已闭环。
+- [ ] 纯图片基线 deck 已产出，并用 `acceptanceRenderer` 渲染为 `baseline-render/`（同后端同画布）；基线本身渲染无尺寸/色彩/裁切异常。
+- [ ] 编辑版还原度已**同时对照原始参考图与 `baseline-render/`**，基线对照（同后端 apples-to-apples 主判据）通过。
 - [ ] 参考图与最终渲染图对照图已生成。
 - [ ] pairing JSON 已生成，缺失页、重复页和多余页检查通过。
 - [ ] 每页最终 PNG 已全尺寸视觉复核。

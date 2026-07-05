@@ -8,6 +8,14 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 
 ## 最新更新
 
+### 2026-07-05：`ppt-rebuild-workflow` 引入"纯图片基线 deck"硬约束
+
+把原本的死胡同预览模式 Mode A 重定义为**纯图片基线 deck**，并接入 Mode B/C 重构主流程：
+
+- **Mode A 重定义**：其本质就是"做一份纯图片 PPT（每页整页图铺满，不需参考测量）"。它既是"只要平铺预览"时的独立交付，也是 Mode B/C 重构前**必建的对照基线**。
+- **硬约束**：Mode B/C 重构前必须先建纯图片基线 deck、用同一交付渲染后端渲染为 `baseline-render/`；编辑版还原度必须**同时对照原始参考图与 baseline-render**（同后端同画布的 apples-to-apples 主判据，消除源图/浏览器 vs PPT 渲染的尺度与渲染器差异）；基线本身渲染异常先修环境（兜底地板）；未建基线或基线对照未过，不得判 Level 2/3 通过。
+- 工具复用：基线渲染与对照直接用现有 `calibrate_reference_render.py` / `make_reference_render_comparison.py`，无需新脚本。同步 mode-selection / SKILL 推荐流程 / implementation-guardrails / qa-gates / Level 2·3 交付清单；契约与全部 66 单测保持全绿。
+
 ### 2026-07-05：`ppt-rebuild-workflow` 补充占位图/背景/字号规范（借鉴 image-ppt）
 
 从 `image-ppt-to-editable-pptx` 提炼几条关键约束补进 PPT 重构 skill：

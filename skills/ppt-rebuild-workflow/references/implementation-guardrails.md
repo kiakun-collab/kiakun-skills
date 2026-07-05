@@ -16,6 +16,7 @@
 
 - Mode B/C 先按 `visual-extraction-pass.md` 建立逐页 `visual-extraction`，再转成 `layout-spec` 和 `style-spec`。
 - `auto-calibrated` 必须先完成临时校准层、坐标变换和 3-12 个稳定自动宏观锚点；少于 3 个时必须标记 `INSUFFICIENT`，参考整图只能存在于临时产物，不得进入最终 deck。
+- **纯图片基线（硬约束）**：重构前必须先从参考图产出纯图片基线 deck（Mode A 本质，每页整页图铺满，不需测量/校准），用同一交付渲染后端渲染为 `baseline-render/`。编辑版还原度必须**同时对照原始参考图与 `baseline-render/`**——后者是同后端同画布的 apples-to-apples 主判据，消除源图/浏览器 vs PPT 渲染的尺度与渲染器差异。基线本身渲染异常时先修环境（兜底地板）；未建基线、未跑基线对照或基线对照未过，不得判 Level 2/3 完整通过。基线渲染与对照直接复用 `calibrate_reference_render.py` / `make_reference_render_comparison.py`。
 - 每个可编辑文字、形状和内容图对象必须能追溯到参考图 bbox、原 PPTX 对象、用户文案或明确的风格复用依据之一。
 - 复杂或低置信形状默认进入 `baked-asset` 或 `mode-b-fallback`；只有用户强制要求其独立可编辑且无稳定原生实现时才设置 `needsHumanReview`。
 
