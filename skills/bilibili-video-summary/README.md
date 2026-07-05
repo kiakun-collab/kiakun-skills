@@ -1,100 +1,56 @@
-# B站视频总结 Skill
+# bilibili-video-summary
 
-获取B站视频信息、字幕、评论、弹幕，并支持 Whisper 语音转文字。
+B站视频**决策助手**：不是简单"下载视频数据"，而是帮你快速判断长视频**值不值得看、看哪一段、评论区共识与争议**。
 
-## 功能
-
-- ✅ 获取视频信息（标题、UP主、播放量、点赞等）
-- ✅ 获取字幕（中文字幕优先）
-- ✅ 获取弹幕
-- ✅ 获取热门评论
-- ✅ Whisper 语音转文字（无字幕时）
-- ✅ 结构化总结输出
+核心思路：**脚本预消化 → LLM 只理解**。脚本以最低成本拿全原始文本素材（字幕正文/弹幕/热评）+ 预算好的统计信号（词频、密度、峰值、互动率），输出一份 **≤15KB 的固定量级 JSON**，由调用方 Claude 生成决策导向报告。绝不把全量弹幕/评论 dump 出来。
 
 ## 安装
 
 ```bash
-# 安装依赖
-pip install bilibili-api-python aiohttp faster-whisper
-
-# 或使用 requirements.txt
-pip install -r requirements.txt
+pip install -e .            # bilibili-api-python + aiohttp
+pip install -e ".[whisper]" # 可选：无 CC 字幕时的 Whisper 兜底（另需系统 ffmpeg）
 ```
 
-## 配置
+## 用法
 
-### Cookie 配置（可选）
+```bash
+# 主脚本：拉全素材 + 预消化，输出 JSON
+python scripts/bilibili_digest.py "https://www.bilibili.com/video/BV1xx411c7mD"
+python scripts/bilibili_digest.py "av170001" --page 1 --transcript head
 
-将 B站登录凭证写入 `cookies.json`，用于获取字幕、弹幕、评论：
+# 无字幕兜底：Whisper 转写（需 ffmpeg）
+python scripts/bilibili_whisper.py "BV1xx411c7mD" --sample --peaks peaks.json
+```
+
+常用开关：`--page N`、`--transcript full|head|none`、`--skip-comments`、`--skip-uploader`、`--no-cache`、`--throttle 秒`。
+
+## 素材优先级链
+
+```
+主内容源：字幕正文（全文逐句）  →  无字幕兜底：Whisper 转写（可采样）
+辅助信号（并行顺带取）：B站官方 AI 小结（仅作分段章节锚点；字幕/转写都拿不到时才降级采用其摘要，且标注来源）
+```
+
+`transcript.source` 字段标注本次内容来源：`subtitle` / `whisper` / `ai_conclusion_fallback` / `none`。
+
+## 输出字段
+
+见 [SKILL.md](SKILL.md) 的「输出 JSON 契约」。要点：`value_signals`（互动率+基准提示）、`danmaku_analysis`（词频 Top20 / 密度数组 / Top5 峰值+代表弹幕 / pbp 印证）、`hot_comments`（热评+楼中楼，含置顶/UP回复标记）、`uploader_profile`（UP主画像）。
+
+## 配置（Cookie，可选但建议）
+
+字幕、部分接口需登录态。将凭证写入 `cookies.json`（skill 目录优先）：
 
 ```json
-{
-  "sessdata": "你的SESSDATA",
-  "bili_jct": "你的BILI_JCT",
-  "buvid3": "你的BUVID3"
-}
+{ "sessdata": "你的SESSDATA", "bili_jct": "你的BILI_JCT", "buvid3": "你的BUVID3" }
 ```
 
-Cookie 文件路径（按顺序查找）：
-1. 当前目录下的 `cookies.json`
-2. `~/.hermes/skills/openclaw-imports/bilibili-summary/cookies.json`
+**不要泄露 SESSDATA/BILI_JCT。** 脚本内置限速与 24h 本地缓存（`~/.cache/bilibili-summary/`），不做任何绕过风控的行为。
 
-### Whisper 模型
-
-首次运行时会自动下载 Whisper 模型。可选模型：
-
-| 模型 | 速度 | 精度 | 内存需求 |
-|------|------|------|----------|
-| tiny | 最快 | 较低 | ~1GB |
-| base | 快 | 一般 | ~1GB |
-| small | 中等 | 较好 | ~2GB |
-| medium | 较慢 | 好 | ~5GB |
-
-## 使用
-
-### 视频信息 + 字幕 + 弹幕 + 评论
+## 测试
 
 ```bash
-python scripts/bilibili_summary.py "https://www.bilibili.com/video/BV1p4DeB8ECi"
+python -m pytest tests/ -q   # 网络调用全 mock，离线可跑
 ```
 
-### Whisper 转写（无字幕时）
-
-```bash
-python scripts/bilibili_whisper.py "https://www.bilibili.com/video/BV1p4DeB8ECi"
-```
-
-### 指定 Whisper 模型
-
-```bash
-python scripts/bilibili_whisper.py "BV号" --model small --lang zh
-```
-
-## 工作流程
-
-```
-用户发送B站链接
-    ↓
-解析BV/AV号
-    ↓
-获取视频信息、字幕、弹幕、评论
-    ↓
-若无字幕 → 下载音频 → Whisper转写
-    ↓
-生成结构化总结
-    ↓
-输出报告
-```
-
-## 技术栈
-
-- **bilibili-api**: B站API Python库
-- **faster-whisper**: 本地Whisper模型，CPU推理，免费
-- **curl + ffmpeg**: 音频提取
-
-## 注意事项
-
-- 遵守B站使用条款和相关法律法规
-- 请求频率保持2秒间隔，避免触发风控
-- Whisper 完全本地运行，不消耗任何API额度
-- 不要向他人泄露 SESSDATA 和 BILI_JCT
+开发细节与验证记录见 [DEVELOPMENT_REPORT.md](DEVELOPMENT_REPORT.md)。
