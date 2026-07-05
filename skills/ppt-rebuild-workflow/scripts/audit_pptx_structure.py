@@ -241,6 +241,27 @@ def collect_fonts(
     return font_sets, theme_fonts, deduplicated
 
 
+def collect_font_sizes(roots, slide_names):
+    """收集 slide 内所有字号 sz（1/100 pt）→ (fontSizesPt, nonEvenFontSizesPt)。
+
+    偶数整数 pt ⇔ sz % 200 == 0；奇数 pt 或半号（如 11pt=1100、10.5pt=1050）列入 nonEven。
+    对应 image-ppt 的"字号必须偶数整数磅"包内检查（勿用 px 判断偶数）。
+    """
+    sizes: set[int] = set()
+    for name in slide_names:
+        root = roots.get(name)
+        if root is None:
+            continue
+        for tag in ("a:rPr", "a:defRPr", "a:endParaRPr"):
+            for node in root.findall(f".//{tag}", NS):
+                sz = node.attrib.get("sz")
+                if sz and sz.isdigit():
+                    sizes.add(int(sz))
+    font_sizes_pt = sorted(round(s / 100, 2) for s in sizes)
+    non_even = sorted(round(s / 100, 2) for s in sizes if s % 200 != 0)
+    return font_sizes_pt, non_even
+
+
 def audit(pptx_path: Path) -> dict:
     with zipfile.ZipFile(pptx_path) as zf:
         names = zf.namelist()
@@ -374,9 +395,12 @@ def audit(pptx_path: Path) -> dict:
         for values in font_sets.values():
             merged_fonts.update(values)
         has_full_slide_risk = bool(full_slide_risk_pages)
+        font_sizes_pt, non_even_font_sizes = collect_font_sizes(root_cache, slide_names)
         return {
             "pptx": str(pptx_path),
             "slideCount": len(slide_names),
+            "fontSizesPt": font_sizes_pt,
+            "nonEvenFontSizesPt": non_even_font_sizes,
             "slideSizeEmu": {"w": slide_w, "h": slide_h},
             "mediaCount": len(media_names),
             "emptyMediaCount": len(empty_media),

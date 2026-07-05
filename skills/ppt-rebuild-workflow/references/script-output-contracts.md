@@ -18,6 +18,8 @@ stdout：无 `--output` 时打印完整 JSON；有 `--output` 时默认只打印
 
 字体字段：
 
+- `fontSizesPt`：包内所有 `a:rPr/defRPr/endParaRPr` 的字号（sz÷100，去重升序）。
+- `nonEvenFontSizesPt`：非偶数整数 pt 的字号（奇数或半号，如 11、10.5）——交付前应清零；对应 image-ppt 的"字号须偶数整数磅"包内检查。
 - `latinFonts`
 - `eastAsianFonts`
 - `complexScriptFonts`

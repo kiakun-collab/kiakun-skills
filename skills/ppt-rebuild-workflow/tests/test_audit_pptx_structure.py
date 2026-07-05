@@ -124,6 +124,31 @@ class AuditPptxStructureTests(unittest.TestCase):
         self.assertIn("pages", json.loads(full.stdout))
         self.assertIn("pages", json.loads(no_output.stdout))
 
+    def test_collect_font_sizes_flags_non_even_pt(self) -> None:
+        # image-ppt 借鉴：字号须为偶数整数 pt；奇数/半号列入 nonEvenFontSizesPt。
+        from xml.etree import ElementTree as ET
+
+        import audit_pptx_structure as aud
+
+        a = "http://schemas.openxmlformats.org/drawingml/2006/main"
+        p = "http://schemas.openxmlformats.org/presentationml/2006/main"
+        xml = (
+            f'<p:sld xmlns:p="{p}" xmlns:a="{a}">'
+            '<a:rPr sz="1200"/><a:rPr sz="1100"/><a:rPr sz="1050"/>'
+            '<a:endParaRPr sz="1400"/></p:sld>'
+        )
+        root = ET.fromstring(xml)
+        sizes, non_even = aud.collect_font_sizes({"s1": root}, ["s1"])
+        assert 12.0 in sizes and 14.0 in sizes
+        assert set(non_even) == {11.0, 10.5}  # 1200/1400 偶数, 1100 奇数, 1050 半号
+
+    def test_audit_reports_font_size_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pptx = make_basic_pptx(Path(directory) / "sizes.pptx")
+            result = audit(pptx)
+        assert "fontSizesPt" in result and "nonEvenFontSizesPt" in result
+        assert isinstance(result["fontSizesPt"], list)
+
     def test_cli_reports_corrupt_pptx_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
