@@ -1,6 +1,8 @@
 # M2 · 变换层(extraction.json → layout-spec.json) ✅
 
 > 完成(2026-07-05):`scripts/build_layout_spec.py`(纯 Python)。角色分类(text/shape/image/svg/table/structural)、同 bounds shape 合并(样式合成:fill+line+shadow+radius)、structural 容器丢弃但子元素记 groupId(最近含≥2 产出的祖先)、可表达性评分(backdrop-filter/conic/多层/inset 阴影/svg → baked+bakedReason;baked 登记 pendingBake)、文字专项(runs→sizePt、padding 实测、textLayoutBudget、pre 换行)、fontMap(installed 命中 1.0 / web 映射 0.8+warning / 兜底 Arial 0.5+warning)、cleanliness ratio(>1.3 warning)。`tests/test_transform.py` 10 测试全绿(三层合并为 1、wrapper 不产出+分组、backdrop/多层阴影 baked、字体三档、ratio、旋转用未变换盒)。M1→M2 端到端冒烟通过(html/body 页底合并去重)。
+>
+> 增强(2026-07-05,吸收实战复盘):fontMap 改为**枚举本机注册表真实字体名**(`load_installed_fonts`),并对拼写/空格差异自动校正(`腾讯体W7`→`腾讯体 W7`,confidence 0.9)、无匹配时明确 fallback 风险警告;`warnings` 新增**超出 1280×720 出界检测**(底部越界预警)。
 
 产出:`scripts/build_layout_spec.py`(纯 Python,无浏览器/COM 依赖,100% 可单测)。
 **这是"干净整洁"目标的实现处,是本 skill 的差异化核心。**

@@ -121,6 +121,36 @@ def test_font_unknown_falls_back_to_arial_with_warning():
     assert r["target"] == "Arial" and r["confidence"] == 0.5 and r["warning"]
 
 
+def test_font_corrects_missing_space_to_registered_name():
+    # retrospective 5.1: 写 "腾讯体W7" 实际注册名是 "腾讯体 W7"，应自动校正。
+    r = bl.resolve_font("腾讯体W7", installed={"腾讯体 W7"})
+    assert r["target"] == "腾讯体 W7"
+    assert r["confidence"] == 0.9
+    assert "校正" in r["warning"]
+
+
+def test_font_hit_returns_registered_casing():
+    r = bl.resolve_font("arial", installed={"Arial"})
+    assert r["target"] == "Arial" and r["confidence"] == 1.0
+
+
+def test_font_fallback_warns_about_powerpoint_fallback():
+    r = bl.resolve_font("Nonexistent Face", installed={"Arial"})
+    assert r["confidence"] == 0.5 and "fallback" in r["warning"].lower()
+
+
+def test_installed_fonts_enumeration_returns_names():
+    fonts = bl.load_installed_fonts()
+    assert isinstance(fonts, frozenset) and len(fonts) >= 1
+
+
+def test_out_of_bounds_element_warns():
+    e = elem("html>body:nth-of-type(1)>div:nth-of-type(1)", "div", 1200, 600, 200, 200, 0)
+    e["style"]["background"] = {"raw": "rgb(0,0,0)", "type": "color", "color": "#000000ff"}
+    result = spec([e])
+    assert any("超出" in w for w in result["warnings"])
+
+
 def test_text_shape_maps_font_and_size_to_pt():
     e = text_el("html>body:nth-of-type(1)>p:nth-of-type(1)", "p", 10, 10, 200, 24, "Hi", family="Inter, sans-serif", size=20)
     result = spec([e])
