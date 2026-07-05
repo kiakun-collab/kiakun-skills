@@ -141,6 +141,9 @@
 
 角色为 `structural` 的元素不进 `shapes`（只保留其子元素的 `groupId`）。
 
+- `fontMap[].target` 是**本机真实注册字体名**（枚举 Windows 注册表 Fonts 键得到，PowerPoint 实际识别）。`confidence`:`1.0` 精确命中 / `0.9` 去空格大小写校正（如 `腾讯体W7`→`腾讯体 W7`）/ `0.8` web 字体映射 / `0.6` 通用族 / `0.5` 无匹配回退 Arial（有 fallback 风险，见 `warning`）。
+- `warnings[]` 汇总:cleanliness ratio 超阈值、字体 fallback/校正、以及**超出 1280×720 画布**的元素（溢出/底部越界预警）。
+
 ---
 
 ## 3. qa-report.json（M4 产出，聚合一份）

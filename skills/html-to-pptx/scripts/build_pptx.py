@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -58,6 +59,16 @@ def placeholder_png() -> io.BytesIO:
 
 def _has_cjk(text: str) -> bool:
     return any("一" <= c <= "鿿" or "　" <= c <= "ヿ" for c in text)
+
+
+# 字体名已编码粗字重的 face（W7/Bold/Black…）→ 不再叠合成粗体，避免伪粗（retrospective 3.5）。
+_WEIGHTED_FACE = re.compile(
+    r"\b(bold|black|heavy|semi\s*bold|demi\s*bold|extra\s*bold|ultra\s*bold|w[6-9])\b", re.I
+)
+
+
+def _is_weighted_face(name: str) -> bool:
+    return bool(_WEIGHTED_FACE.search(name or ""))
 
 
 def _apply_fill(shape, fill):
@@ -123,7 +134,8 @@ def build_text(slide, sh):
     for run in t["runs"]:
         r = para.add_run()
         r.text = run["text"]
-        r.font.bold = run["bold"]
+        # 目标字体已是粗字重 face 时不再叠合成粗体（避免伪粗，retrospective 3.5）
+        r.font.bold = run["bold"] and not _is_weighted_face(run["font"])
         r.font.italic = run["italic"]
         r.font.size = Pt(run["sizePt"])
         r.font.name = run["font"]

@@ -1,6 +1,8 @@
 # M3 · PPTX 构建器(layout-spec.json → .pptx) ✅
 
-> 完成(2026-07-05):`scripts/build_pptx.py` + `scripts/_oxml_helpers.py`。逐角色:shape→autoshape(rect/roundRect,adj 圆角)、渐变/outer shadow/透明度走 OXML、text→textbox(`<a:noAutofit/>`、margins=padding、runs 粗斜色字号、CJK 补 latin+ea)、image→picture(本地文件嵌入,否则透明占位+登记 pendingBake)、旋转 rot=度、group 用**恒等变换 grpSp**(off==chOff/ext==chExt,子形状保绝对坐标)、table v1 由单元格 text 呈现(原生表格留 v2)。`tests/test_build.py` 7 测试全绿(solid+round+shadow+rot、渐变 stops+ang、noAutofit+run 属性、CJK ea、group 恒等变换 2 子、baked 占位+pendingBake、形状计数)。
+> 完成(2026-07-05):`scripts/build_pptx.py` + `scripts/_oxml_helpers.py`。逐角色:shape→autoshape(rect/roundRect,adj 圆角)、渐变/outer shadow/透明度走 OXML、text→textbox(`<a:noAutofit/>`、margins=padding、runs 粗斜色字号、CJK 补 latin+ea)、image→picture(本地文件嵌入,否则透明占位+登记 pendingBake)、旋转 rot=度、group 用**恒等变换 grpSp**(off==chOff/ext==chExt,子形状保绝对坐标)、table v1 由单元格 text 呈现(原生表格留 v2)。`tests/test_build.py` 全绿(solid+round+shadow+rot、渐变 stops+ang、noAutofit+run 属性、CJK ea、group 恒等变换 2 子、baked 占位+pendingBake、形状计数)。
+>
+> 增强(2026-07-05,吸收实战复盘 3.5):目标字体名已带粗字重 face(W7/Bold/Black…)时**不再叠合成粗体**(`_is_weighted_face`),避免伪粗;附 2 条回归。
 
 产出:`scripts/build_pptx.py`(python-pptx;个别 python-pptx 不支持的属性直接操作 lxml XML)。
 

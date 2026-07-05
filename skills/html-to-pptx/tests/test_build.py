@@ -139,6 +139,28 @@ def test_baked_image_uses_placeholder_and_registers_pending(tmp_path):
     assert root.find(".//p:pic", NS) is not None
 
 
+def test_weighted_face_does_not_get_synthetic_bold(tmp_path):
+    # retrospective 3.5: 字体名已带字重(W7)时不应再叠伪粗体。
+    import build_pptx
+    assert build_pptx._is_weighted_face("腾讯体 W7")
+    assert build_pptx._is_weighted_face("Arial Bold")
+    assert not build_pptx._is_weighted_face("Arial")
+    s = text_shape("t1", 0, 0, 300, 40, content="标题", font="腾讯体 W7", size=20.0)
+    s["text"]["runs"][0]["bold"] = True
+    out, _ = build(tmp_path, [s])
+    root = slide_xml(out)
+    rpr = root.find(".//p:sp/p:txBody//a:r/a:rPr", NS)
+    assert rpr.get("b") in (None, "0")  # 未写入 b="1"
+
+
+def test_plain_font_still_gets_bold(tmp_path):
+    s = text_shape("t1", 0, 0, 300, 40, content="Hi", font="Arial", size=20.0)
+    s["text"]["runs"][0]["bold"] = True
+    out, _ = build(tmp_path, [s])
+    rpr = slide_xml(out).find(".//p:sp/p:txBody//a:r/a:rPr", NS)
+    assert rpr.get("b") == "1"
+
+
 def test_shape_and_text_counts_match_spec(tmp_path):
     shapes = [shape("bg", "shape", 0, 0, 1280, 720, z=0, fill={"type": "solid", "color": "#ffffffff"}),
               text_shape("t1", 100, 100, 300, 40, z=1),

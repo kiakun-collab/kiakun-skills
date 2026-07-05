@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -28,34 +30,82 @@ WEB_FONT_MAP = {
     "source han sans sc": "Microsoft YaHei", "noto sans sc": "Microsoft YaHei",
     "pingfang sc": "Microsoft YaHei", "source han serif sc": "SimSun",
 }
+# 非 Windows / 注册表读取失败时的兜底集（真实大小写）。
 DEFAULT_INSTALLED = {
-    "arial", "segoe ui", "calibri", "times new roman", "consolas", "georgia",
-    "tahoma", "verdana", "comic sans ms", "cambria", "microsoft yahei", "simsun", "simhei",
+    "Arial", "Segoe UI", "Calibri", "Times New Roman", "Consolas", "Georgia",
+    "Tahoma", "Verdana", "Comic Sans MS", "Cambria", "Microsoft YaHei", "SimSun", "SimHei",
 }
+
+
+@functools.lru_cache(maxsize=1)
+def load_installed_fonts() -> frozenset:
+    """枚举本机**真实注册**的字体名（Windows 注册表 Fonts 键）。
+
+    经验(retrospective 5.1):不能凭"看起来像名字"写字体,否则 PowerPoint 会静默
+    fallback。这里读注册表拿到 PowerPoint 实际识别的注册名(如 `腾讯体 W7`),供
+    fontMap 精确匹配与 fallback 检测。非 Windows / 读取失败回退到 DEFAULT_INSTALLED。
+    """
+    names: set[str] = set()
+    try:
+        import winreg
+
+        subkey = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                key = winreg.OpenKey(hive, subkey)
+            except OSError:
+                continue
+            index = 0
+            while True:
+                try:
+                    value_name, _data, _type = winreg.EnumValue(key, index)
+                except OSError:
+                    break
+                index += 1
+                for part in value_name.split("&"):
+                    part = re.sub(r"\s*\((?:TrueType|OpenType|All res)\)\s*$", "", part).strip()
+                    if part:
+                        names.add(part)
+            winreg.CloseKey(key)
+    except Exception:  # pragma: no cover - 平台/权限相关
+        names = set()
+    return frozenset(names) if names else frozenset(DEFAULT_INSTALLED)
 
 
 def _families(chain: str) -> list[str]:
     return [f.strip().strip("'\"") for f in chain.split(",") if f.strip()]
 
 
-def resolve_font(chain: str, installed: set[str] | None = None) -> dict:
-    installed = installed if installed is not None else DEFAULT_INSTALLED
+def resolve_font(chain: str, installed=None) -> dict:
+    """把 CSS font-family 链解析到**本机真实注册名**。
+
+    优先级:精确命中 → 去空格/大小写校正(吸收"腾讯体W7"→"腾讯体 W7"这类坑) →
+    web 字体映射 → 通用族 → 兜底 Arial(并明确警告 PowerPoint 可能 fallback)。
+    """
+    names = installed if installed is not None else load_installed_fonts()
+    lower_map = {n.lower(): n for n in names}
+    norm_map = {n.lower().replace(" ", ""): n for n in names}
     for fam in _families(chain):
-        low = fam.lower()
-        if low in installed:
-            return {"source": chain, "target": fam, "confidence": 1.0, "warning": None}
+        if fam.lower() in lower_map:
+            return {"source": chain, "target": lower_map[fam.lower()], "confidence": 1.0, "warning": None}
     for fam in _families(chain):
-        low = fam.lower()
-        mapped = WEB_FONT_MAP.get(low)
-        if mapped and mapped.lower() in installed:
-            return {"source": chain, "target": mapped, "confidence": 0.8,
+        # 到这里已无精确命中；去空格后若与某注册名一致 → 校正（吸收"腾讯体W7"→"腾讯体 W7"）
+        norm = fam.lower().replace(" ", "")
+        if norm in norm_map:
+            real = norm_map[norm]
+            return {"source": chain, "target": real, "confidence": 0.9,
+                    "warning": f"字体 '{fam}' 未按注册名书写,已校正为本机注册名 '{real}'"}
+    for fam in _families(chain):
+        mapped = WEB_FONT_MAP.get(fam.lower())
+        if mapped and mapped.lower() in lower_map:
+            return {"source": chain, "target": lower_map[mapped.lower()], "confidence": 0.8,
                     "warning": f"web font '{fam}' mapped to installed '{mapped}'"}
     for fam in _families(chain):
-        low = fam.lower()
-        if low in GENERIC_FALLBACKS:
-            return {"source": chain, "target": GENERIC_FALLBACKS[low], "confidence": 0.6, "warning": None}
+        if fam.lower() in GENERIC_FALLBACKS:
+            g = GENERIC_FALLBACKS[fam.lower()]
+            return {"source": chain, "target": lower_map.get(g.lower(), g), "confidence": 0.6, "warning": None}
     return {"source": chain, "target": "Arial", "confidence": 0.5,
-            "warning": f"no installed match for '{chain}'; falling back to Arial"}
+            "warning": f"'{chain}' 无本机匹配字体,PowerPoint 可能字体 fallback;已回退 Arial"}
 
 
 # --- 角色分类 ---------------------------------------------------------------
@@ -296,6 +346,12 @@ def transform(extraction: dict, svg_as_shapes: bool = False, installed: set[str]
     warnings = []
     if ratio > CLEANLINESS_WARN_RATIO:
         warnings.append(f"cleanliness ratio {ratio} > {CLEANLINESS_WARN_RATIO}")
+    # 出界检测（retrospective 5.3/7：底部页脚、多列最后一行、卡片长文本最易越界）
+    tol = 2
+    for s in shapes:
+        b = s["bboxPx"]
+        if b["x"] < -tol or b["y"] < -tol or b["x"] + b["w"] > 1280 + tol or b["y"] + b["h"] > 720 + tol:
+            warnings.append(f"元素 {s['id']} 超出 1280x720 画布(bbox={b}),可能溢出/底部越界")
     font_map = list(font_map_cache.values())
     for fm in font_map:
         if fm["warning"]:
