@@ -105,7 +105,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **chinese-first-dialog** | `skills/chinese-first-dialog/` | 中文优先对话 | 默认简体中文回复，保留代码、命令、路径、配置键、API 标识符和原始错误文本 |
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
-| **ppt-rebuild-workflow** | `skills/ppt-rebuild-workflow/` | PPT 重构工作流 | Mode A-E 路由、语义验收、自动坐标校准、视觉抽取、富文本、资产策略、复杂过渡与分级 QA |
+| **ppt-rebuild-workflow** | `skills/ppt-rebuild-workflow/` | PPT 重构工作流 | 语义验收、自动坐标校准、视觉抽取、富文本、资产策略、纯图片基线对照（硬门禁）、占位图/背景/字号规范与分级 QA |
 | **html-to-pptx** | `skills/html-to-pptx/` | HTML 转可编辑 PPTX | 浏览器渲染 + DOM 几何提取、角色分类与整洁扁平化、原生对象构建、PowerPoint COM 渲染、SSIM 双门禁与自动返修 |
 | **game-ui-asset-pipeline** | `skills/game-ui-asset-pipeline/` | 游戏 UI 资产流水线 | 生成、清理、切片、验证并导入 Godot 游戏 UI 图标、HUD glyph、九宫格面板和按钮皮肤 |
 | **player-interaction-design** | `skills/player-interaction-design/` | 游戏玩家互动设计 | 先写玩家入口、主操作、可见反馈、失败恢复和证据层级合同 |
@@ -332,13 +332,15 @@ kiakun-skills/
 用于把幻灯片截图、图片型 PPTX、AI 生成参考页或用户修改稿重构为可编辑 PPTX。根据速度、可编辑性和还原度选择 Mode A-E，并对语义、坐标、视觉抽取、字体、对象角色、文字碰撞、整页图片风险、页码配对、边缘融合和视觉还原度执行分级 QA。
 
 **核心能力：**
-- Mode A-E 路由：快版整页图、半可编辑重构、完全分层重构、先重做参考图、用户修改稿增量修正
+- 模式路由：纯图片基线 deck（Mode A 本质）、半可编辑重构、完全分层重构、先重做参考图、用户修改稿增量修正
+- **纯图片基线对照（硬门禁）**：Mode B/C 重构前必建纯图片基线 deck，用同一后端渲染为 `baseline-render/`，编辑版还原度必须同时对照原始参考图与该基线（同后端同画布 apples-to-apples 主判据），未过不判 Level 2/3 通过
 - 语义优先：先判断参考图是否存在内容或版式方向错误，必要时转入 Mode D
 - 自动坐标校准：使用测量脚本、自动宏观锚点和临时校准层减少手工点位确认
 - 视觉抽取：逐页记录文字、形状、图片、间距、层级、置信度、来源证据和回退策略
 - 字体校准：通过渲染候选比较字号、行距、文本框尺寸、内边距和最终 bbox
 - 富文本处理：同一句多色/多字号文字优先用单文本框 runs，避免拆框造成异常空隙
 - 资产策略：原资产优先，其次裁切/抠图，最后才重新生成；复杂低置信对象可自动烘焙或降级
+- 占位图/背景/字号规范：截图区单一原生占位对象、纯色底色用页面背景格式（非整页矩形）、字号须偶数整数 pt（`audit_pptx_structure.py` 的 `nonEvenFontSizesPt` 自动列出）
 - QA 门禁：结构审计、文本框审计、视觉重叠审计、参考图还原度审计、复杂过渡检查和分级交付 checklist
 
 **典型用法：**
