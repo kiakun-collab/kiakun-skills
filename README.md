@@ -8,6 +8,14 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 
 ## 最新更新
 
+### 2026-07-06：新增 `clean-deliverable` 纯净交付守卫 Skill
+
+新增模型通用的"防元信息泄漏"skill：防止占位符（"一个吸引人的标题"）、回声输入（把用户 brief 要点原样贴进成品）和思考残留混进幻灯片、文案、报告、代码等交付物。
+
+- **核心原则**：分清三层，只交付"呈现内容"——幕后输入与思考过程一字不留；判断标准只有一条："这句话是说给受众看的，还是说给作者听的？"
+- **三种用法**：① 产出可贴进任意目标模型（GPT / Gemini / Claude）system prompt 的约束提示词；② 审查并清洗已有交付物，输出对照表 + 干净版（图片类交付物给出修正后的重生成提示词，可接 `gpt-image-2-api`）；③ Agent 自己生成交付物时的交付前自检（信息缺口标注在成品外面）。
+- **防误报**：信号词（"应该 / 需要 / 此处 / TODO"）是线索不是判决，命中后回到受众视角复核；附按交付物形态（幻灯片/文案/代码/模板）的高发泄漏对照表。纯 Markdown skill，无脚本依赖，任何支持 `SKILL.md` 的平台可直接使用。
+
 ### 2026-07-05：`ppt-rebuild-workflow` 引入"纯图片基线 deck"硬约束
 
 把原本的死胡同预览模式 Mode A 重定义为**纯图片基线 deck**，并接入 Mode B/C 重构主流程：
@@ -103,6 +111,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **bilibili-video-summary** | `skills/bilibili-video-summary/` | B站视频决策助手 | 脚本预消化为 ≤15KB 信号 JSON；字幕正文/弹幕聚合(词频·密度·高能峰值)/热评楼中楼/价值信号/Whisper 兜底，LLM 出"值不值得看"决策报告 |
 | **folder-to-vector-kb** | `skills/folder-to-vector-kb/` | 文件夹向量化 | 批量文档清洗、语义 chunk 切分、元数据补全、输出 `knowledge_base.jsonl` |
 | **chinese-first-dialog** | `skills/chinese-first-dialog/` | 中文优先对话 | 默认简体中文回复，保留代码、命令、路径、配置键、API 标识符和原始错误文本 |
+| **clean-deliverable** | `skills/clean-deliverable/` | 纯净交付守卫 | 防占位符/回声输入/思考残留泄漏进交付物；约束提示词、审查清洗、交付前自检三种用法 |
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
 | **ppt-rebuild-workflow** | `skills/ppt-rebuild-workflow/` | PPT 重构工作流 | 语义验收、自动坐标校准、视觉抽取、富文本、资产策略、纯图片基线对照（硬门禁）、占位图/背景/字号规范与分级 QA |
@@ -145,6 +154,7 @@ uv sync
 cp -r skills/xiaohongshu ~/.claude/skills/
 cp -r skills/bilibili-video-summary ~/.claude/skills/
 cp -r skills/chinese-first-dialog ~/.claude/skills/
+cp -r skills/clean-deliverable ~/.claude/skills/
 cp -r skills/cc-switch-claude-provider ~/.claude/skills/
 cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
 cp -r skills/ppt-rebuild-workflow ~/.claude/skills/
@@ -208,6 +218,9 @@ kiakun-skills/
     │   └── SKILL.md           # B站视频总结
     ├── chinese-first-dialog/
     │   ├── SKILL.md           # 中文优先对话
+    │   └── agents/
+    ├── clean-deliverable/
+    │   ├── SKILL.md           # 纯净交付守卫
     │   └── agents/
     ├── cc-switch-claude-provider/
     │   ├── SKILL.md           # CC Switch Claude Code 第三方 API 配置
@@ -302,6 +315,22 @@ kiakun-skills/
 > "之后默认用中文回复，但代码和命令保持原文。"
 
 详见 `skills/chinese-first-dialog/SKILL.md`。
+
+---
+
+### clean-deliverable（纯净交付守卫）
+
+防止元信息泄漏进交付物（幻灯片、文案、报告、邮件、代码等）：自造占位符、回声输入（把 brief 要点原样贴进成品）、思考过程残留。模型通用（GPT / Gemini / Claude 均适用），纯 Markdown 无脚本依赖。
+
+**三种用法：**
+- 用法 A — 产出可贴进目标模型 system prompt 的约束提示词
+- 用法 B — 审查并清洗已有交付物（对照表 + 干净版；图片类给重生成提示词）
+- 用法 C — Agent 生成交付物时的交付前自检
+
+**典型用法：**
+> "帮我检查这份幻灯片文案有没有把我给你的要点直接抄进去，清洗一版干净的。"
+
+详见 `skills/clean-deliverable/SKILL.md`。
 
 ---
 

@@ -1,0 +1,3 @@
+interface:
+  display_name: "纯净交付守卫"
+  short_description: "防止占位符、回声输入与思考残留泄漏进交付物：产出约束提示词、审查清洗已有交付物、交付前自检"
