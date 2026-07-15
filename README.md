@@ -8,6 +8,10 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 
 ## 最新更新
 
+### 2026-07-15：新增 `deliverable-purifier` 客户交付物终稿净化 Skill
+
+面向 PPT 文案、方案、报告、品牌策略和业务模板的最终编辑层：清除提示词痕迹、内部创作说明与意外占位，同时锁定事实、数据、引用、声明、专有名词和用户指定字段。通过受众正文/授权备注/内部过程三层边界、`KEEP / REWRITE / REMOVE / RESOLVE` 四类处置及 `FINAL / REVIEW / COMPARE` 三种输出模式，避免清洗时误删、误改或编造。与 `clean-deliverable` 分工：后者负责通用防元信息泄漏和跨模型约束提示词，本 skill 专注客户业务材料的保真终稿。
+
 ### 2026-07-06：新增 `clean-deliverable` 纯净交付守卫 Skill
 
 新增模型通用的"防元信息泄漏"skill：防止占位符（"一个吸引人的标题"）、回声输入（把用户 brief 要点原样贴进成品）和思考残留混进幻灯片、文案、报告、代码等交付物。
@@ -112,6 +116,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **folder-to-vector-kb** | `skills/folder-to-vector-kb/` | 文件夹向量化 | 批量文档清洗、语义 chunk 切分、元数据补全、输出 `knowledge_base.jsonl` |
 | **chinese-first-dialog** | `skills/chinese-first-dialog/` | 中文优先对话 | 默认简体中文回复，保留代码、命令、路径、配置键、API 标识符和原始错误文本 |
 | **clean-deliverable** | `skills/clean-deliverable/` | 纯净交付守卫 | 防占位符/回声输入/思考残留泄漏进交付物；约束提示词、审查清洗、交付前自检三种用法 |
+| **deliverable-purifier** | `skills/deliverable-purifier/` | 客户交付物终稿净化 | 客户业务材料的保真清洗、内容分层、四类处置与三种输出模式 |
 | **cc-switch-claude-provider** | `skills/cc-switch-claude-provider/` | Claude Code API 配置 | 通过 CC Switch 写入第三方 Claude-compatible API、切换 provider、冒烟测试 |
 | **image-ppt-to-editable-pptx** | `skills/image-ppt-to-editable-pptx/` | 图片型 PPT 可编辑复刻 | 将截图/图片型 PPT 复刻为可编辑 PPTX，参数化字体、单形状占位图、PPT 背景格式与导出后 QA |
 | **ppt-rebuild-workflow** | `skills/ppt-rebuild-workflow/` | PPT 重构工作流 | 语义验收、自动坐标校准、视觉抽取、富文本、资产策略、纯图片基线对照（硬门禁）、占位图/背景/字号规范与分级 QA |
@@ -155,6 +160,7 @@ cp -r skills/xiaohongshu ~/.claude/skills/
 cp -r skills/bilibili-video-summary ~/.claude/skills/
 cp -r skills/chinese-first-dialog ~/.claude/skills/
 cp -r skills/clean-deliverable ~/.claude/skills/
+cp -r skills/deliverable-purifier ~/.claude/skills/
 cp -r skills/cc-switch-claude-provider ~/.claude/skills/
 cp -r skills/image-ppt-to-editable-pptx ~/.claude/skills/
 cp -r skills/ppt-rebuild-workflow ~/.claude/skills/
@@ -164,6 +170,7 @@ cp -r skills/player-interaction-design ~/.claude/skills/
 cp -r skills/gpt-image-2-api ~/.claude/skills/
 
 # Codex 示例
+cp -r skills/deliverable-purifier ~/.codex/skills/
 cp -r skills/player-interaction-design ~/.codex/skills/
 cp -r skills/gpt-image-2-api ~/.codex/skills/
 
@@ -221,6 +228,9 @@ kiakun-skills/
     │   └── agents/
     ├── clean-deliverable/
     │   ├── SKILL.md           # 纯净交付守卫
+    │   └── agents/
+    ├── deliverable-purifier/
+    │   ├── SKILL.md           # 客户业务交付物终稿净化
     │   └── agents/
     ├── cc-switch-claude-provider/
     │   ├── SKILL.md           # CC Switch Claude Code 第三方 API 配置
@@ -331,6 +341,17 @@ kiakun-skills/
 > "帮我检查这份幻灯片文案有没有把我给你的要点直接抄进去，清洗一版干净的。"
 
 详见 `skills/clean-deliverable/SKILL.md`。
+
+---
+
+### deliverable-purifier（交付物纯净化）
+
+把 PPT 页面文案、营销方案、提案、品牌策略、报告和业务模板整理为可直接交付的终稿。清除提示词痕迹和内部创作说明，同时保护事实、数字、引用、必要声明、speaker notes、production notes 及用户明确要求的占位符。
+
+**典型用法：**
+> "把这份客户汇报文案净化成最终版，保留所有数据、引用和图片占位，不要把制作备注写进页面正文。"
+
+详见 `skills/deliverable-purifier/SKILL.md`。
 
 ---
 

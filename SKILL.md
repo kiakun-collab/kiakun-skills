@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计、纯净交付守卫。
-  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA、生成/切片/验证/导入 Godot 游戏 UI 资产、审查游戏 UI/玩法互动/引导/失败恢复/挑战链路的玩家体验，或要求防元信息泄漏的"纯净交付"（约束提示词/清洗交付物/交付前自检）时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计、纯净交付守卫与客户交付物终稿净化。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA、生成/切片/验证/导入 Godot 游戏 UI 资产、审查游戏 UI/玩法互动/引导/失败恢复/挑战链路的玩家体验，要求通用防元信息泄漏的"纯净交付"，或要求把客户业务材料净化为保真、可直接交付的终稿时触发。
 ---
 
 # Kiakun Skills 集合
@@ -49,6 +49,9 @@ description: |
 12. **纯净交付守卫**（"纯净交付 / 清洗交付物 / 防元信息泄漏 / 约束提示词 / 别把要点写进成品 / anti meta leak"）
    → 执行 `clean-deliverable` 技能。
 
+13. **客户交付物终稿净化**（"客户可直接用 / 最终版 / 汇报成稿 / 净化 PPT 文案 / 保留数据引用和指定占位 / presentation-ready / client-ready"）
+   → 执行 `deliverable-purifier` 技能。若用户要的是给其他模型复用的防泄漏提示词，仍执行 `clean-deliverable`。
+
 ## 子技能路径
 
 ```
@@ -57,6 +60,7 @@ skills/
 ├── chinese-first-dialog/     → 默认简体中文对话并保留代码、命令、路径和标识符原文
 ├── cc-switch-claude-provider/ → CC Switch Claude Code 第三方 API 配置
 ├── clean-deliverable/        → 纯净交付守卫：防占位符/回声输入/思考残留泄漏进交付物
+├── deliverable-purifier/     → 客户业务交付物终稿净化：保真、分层、最小必要修改
 ├── folder-to-vector-kb/      → 文件夹文档向量化
 ├── game-ui-asset-pipeline/   → 游戏 UI 资产生成、切片、验证与 Godot 导入
 ├── gpt-image-2-api/          → GPT Image 2 成本感知 API 生图与编辑
@@ -100,6 +104,11 @@ skills/
 - 触发：用户要求生成防元信息泄漏的约束提示词、审查/清洗一份已有交付物，或在生成交付物时要求"纯净交付"
 - 能力：三层分离（呈现内容/幕后输入/思考过程）→ 三类泄漏识别（占位符/回声输入/思考残留）→ 用法 A 约束提示词 / 用法 B 审查清洗（含图片类重生成提示词）/ 用法 C 交付前自检
 - 入口文件：`skills/clean-deliverable/SKILL.md`
+
+### deliverable-purifier
+- 触发：用户要求把 PPT 文案、方案、报告、品牌策略、模板等客户业务材料整理为可直接交付的终稿
+- 能力：受众正文/授权备注/内部过程三层分离 → KEEP/REWRITE/REMOVE/RESOLVE 四类处置 → 事实、引用、声明与指定占位保真 → FINAL/REVIEW/COMPARE 输出模式
+- 入口文件：`skills/deliverable-purifier/SKILL.md`
 
 ### image-ppt-to-editable-pptx
 - 触发：用户提供图片型 PPT、PPT 截图或参考页图片，要求复刻为可编辑 `.pptx`
