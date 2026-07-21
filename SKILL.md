@@ -126,10 +126,11 @@ skills/
 - 入口文件：`skills/game-ui-asset-pipeline/SKILL.md`
 
 ### gpt-image-2-api
-- 触发：用户要求通过 `gpt-image-2`、`gpt-image-2-vip` 或 aifast.site 兼容接口生成、编辑图片
-- 能力：日常标准版 → 复杂/高精度/VIP → 多参考图自动升级 → 2K/4K → 路由预览 → `check-config.js` 配置检查
-- 配置：复制 skill 后在本地 `.env`、`.gateway.env` 或 `~/.gateway.env` 放置 `OPENAI_API_KEY`；保持
-  `OPENAI_IMAGE_TIMEOUT_MS=0`；需要 AtlasCloud 编辑备用通道时再配置 `ATLASCLOUD_API_KEY`
+- 触发：用户要求通过 `gpt-image-2`、`gpt-image-2-max`、aifast.site、XApex 或 AtlasCloud 兼容接口生成、编辑图片
+- 能力：aifast 标准/VIP 路由 → XApex 独立同步/异步路由 → 多参考图 → 2K/4K → 路由预览 → `check-config.js` 配置检查
+- 配置：复制 skill 后在本地 `.env`、`.gateway.env` 或 `~/.gateway.env` 放置 aifast 的 `OPENAI_API_KEY`
+  或 XApex 图片组的 `XAPEX_API_KEY`；两条路由使用独立 Base URL、模型、尺寸、quality 和超时设置；
+  需要 AtlasCloud 编辑备用通道时再配置 `ATLASCLOUD_API_KEY`
 - 入口文件：`skills/gpt-image-2-api/SKILL.md`
 
 ### player-interaction-design

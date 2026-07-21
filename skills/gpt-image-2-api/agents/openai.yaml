@@ -1,4 +1,4 @@
 interface:
   display_name: "GPT Image 2 API"
-  short_description: "Standard/VIP image API with Atlas fallback"
-  default_prompt: "Use $gpt-image-2-api to generate or edit images with standard/VIP routing and AtlasCloud fallback."
+  short_description: "aifast/XApex images with async and fallback routing"
+  default_prompt: "Use $gpt-image-2-api to generate or edit an image through the appropriate aifast, XApex, or AtlasCloud route."

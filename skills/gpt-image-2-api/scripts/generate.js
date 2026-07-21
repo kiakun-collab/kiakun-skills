@@ -10,6 +10,7 @@ import {
   extractGeneratedImages,
   loadAmbientEnv,
   postJson,
+  postXapexJson,
   printJson,
   publicPlan,
   readPromptInput,
@@ -20,6 +21,7 @@ import {
   savePrompt,
   slugify,
   summarizeSavedImages,
+  runXapexTask,
 } from "./shared.js";
 
 function help() {
@@ -33,11 +35,12 @@ Required input (choose one):
   --promptfile <path>      Load prompt from a UTF-8 file
 
 Routing and image parameters:
-  --profile <name>         auto | standard | vip (hd is a vip compatibility alias)
-  --model <name>           Explicit gpt-image-2 or gpt-image-2-max override
+  --profile <name>         auto | standard | vip | xapex (hd is a vip compatibility alias)
+  --model <name>           Explicit model override; XApex defaults to gpt-image-2
   --size <preset>          Standard 1K preset, VIP/max 1K/2K/4K preset, or ratio mapped to a preset
-  --quality <level>        Route hint only for generation; selects gpt-image-2-max, not an API field
-  --n <count>              Number of images, 1-10 (default: 1)
+  --quality <level>        XApex API field; aifast auto uses it only as a VIP route hint
+  --n <count>              Number of images, XApex 1-9; other profiles 1-10 (default: 1)
+  --async                  XApex only: submit a task and poll until completed
 
 Output:
   --output <path>          Image path (default: ${DEFAULT_OUTPUT_ROOT}/generated/...)
@@ -71,6 +74,7 @@ function parseArgs(argv) {
     if (arg === "-h" || arg === "--help") config.help = true;
     else if (arg === "--json") config.json = true;
     else if (arg === "--dry-run") config.dryRun = true;
+    else if (arg === "--async") config.async = true;
     else if (names.has(arg)) {
       const value = argv[++index];
       if (!value) throw new Error(`Missing value for ${arg}`);
@@ -89,7 +93,10 @@ export async function generateImage(config) {
   if (options.tier === "atlas") {
     throw new Error("AtlasCloud fallback uses an edit-only model and requires at least one reference image; use edit.js.");
   }
-  const plan = publicPlan("generate", options);
+  if (config.async && options.tier !== "xapex") {
+    throw new Error("--async is currently supported only with --profile xapex.");
+  }
+  const plan = publicPlan("generate", options, { async: Boolean(config.async) });
   if (config.dryRun) return plan;
 
   const hint = slugify(prompt.split(/\s+/).slice(0, 8).join(" "), "generated-image");
@@ -97,9 +104,20 @@ export async function generateImage(config) {
   const outputPath = resolveOutput(config.output, buildDefaultImagePath("generate", hint));
   const images = [];
   const responseSummaries = [];
-  while (images.length < options.n) {
+  let taskId = null;
+  const sendJson = options.tier === "xapex" ? postXapexJson : postJson;
+  if (config.async) {
+    const started = await sendJson(
+      plan.endpoint,
+      buildApiPayload(options, { prompt, n: options.n }),
+    );
+    const completed = await runXapexTask(started);
+    taskId = completed.taskId;
+    images.push(...(await extractGeneratedImages(completed.result)));
+    responseSummaries.push(responseSummary(completed.result));
+  } else while (images.length < options.n) {
     const remaining = options.n - images.length;
-    const response = await postJson(
+    const response = await sendJson(
       plan.endpoint,
       buildApiPayload(options, {
         prompt,
@@ -120,6 +138,7 @@ export async function generateImage(config) {
 
   return {
     ...plan,
+    taskId,
     savedImages,
     savedPrompt: promptPath,
     ...imageSummary,

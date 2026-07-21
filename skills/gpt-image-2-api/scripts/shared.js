@@ -7,8 +7,10 @@ import { fileURLToPath } from "node:url";
 export const DEFAULT_OUTPUT_ROOT = "gpt-image-2-output";
 export const DEFAULT_PROMPT_DIR = path.join(DEFAULT_OUTPUT_ROOT, "prompts");
 export const DEFAULT_BASE_URL = "https://aifast.site/v1";
+export const DEFAULT_XAPEX_BASE_URL = "https://cn.xapex.cc/v1";
 export const DEFAULT_ATLAS_BASE_URL = "https://api.atlascloud.ai/api/v1/model";
 export const STANDARD_MODEL = "gpt-image-2";
+export const DEFAULT_XAPEX_MODEL = "gpt-image-2";
 export const VIP_MODEL = "gpt-image-2-max";
 // Retired upstream; accepted as an input alias so old manifests keep working.
 export const LEGACY_VIP_MODEL = "gpt-image-2-vip";
@@ -21,6 +23,10 @@ export const DEFAULT_VIP_GENERATION_SIZE = DEFAULT_VIP_SIZE;
 export const DEFAULT_VIP_QUALITY = "high";
 export const DEFAULT_ATLAS_SIZE = "2048x2048";
 export const DEFAULT_ATLAS_QUALITY = "high";
+export const DEFAULT_XAPEX_SIZE = "1024x1024";
+export const DEFAULT_XAPEX_QUALITY = "low";
+export const DEFAULT_XAPEX_POLL_INTERVAL_MS = 3_000;
+export const DEFAULT_XAPEX_POLL_TIMEOUT_MS = 600_000;
 export const DEFAULT_HD_SIZE = DEFAULT_VIP_SIZE;
 export const DEFAULT_HD_QUALITY = DEFAULT_VIP_QUALITY;
 export const DEFAULT_TIMEOUT_MS = 0;
@@ -29,9 +35,10 @@ export const DEFAULT_MAX_RETRIES = 2;
 export const DEFAULT_ATLAS_POLL_INTERVAL_MS = 2_000;
 export const DEFAULT_ATLAS_POLL_TIMEOUT_MS = 300_000;
 export const MAX_GENERATION_COUNT = 10;
+export const MAX_XAPEX_GENERATION_COUNT = 9;
 export const SKILL_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
-const VALID_PROFILES = new Set(["auto", "standard", "vip", "hd", "atlas"]);
+const VALID_PROFILES = new Set(["auto", "standard", "vip", "hd", "atlas", "xapex"]);
 const VALID_QUALITIES = new Set(["auto", "low", "medium", "high"]);
 const RATIO_SIZES = new Set([
   "auto",
@@ -159,6 +166,7 @@ const ATLAS_PIXEL_SIZES = new Set([
   "3840x2160",
   "2160x3840",
 ]);
+const XAPEX_SAFE_SIZES = new Set(["1024x1024", "1536x1024", "1024x1536"]);
 
 export async function readEnvFile(filePath) {
   try {
@@ -217,6 +225,21 @@ export function buildBaseUrl() {
   return raw;
 }
 
+export function buildXapexBaseUrl() {
+  const raw = (process.env.XAPEX_BASE_URL || DEFAULT_XAPEX_BASE_URL).trim().replace(/\/+$/, "");
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(`XAPEX_BASE_URL is not a valid URL: ${raw}`);
+  }
+  if (!parsed.pathname || parsed.pathname === "/") {
+    parsed.pathname = "/v1";
+    return parsed.toString().replace(/\/$/, "");
+  }
+  return raw;
+}
+
 export function buildAtlasBaseUrl() {
   const raw = (process.env.ATLASCLOUD_BASE_URL || DEFAULT_ATLAS_BASE_URL)
     .trim()
@@ -232,6 +255,12 @@ export function buildAtlasBaseUrl() {
 export function requireApiKey() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is required.");
+  return apiKey;
+}
+
+export function requireXapexApiKey() {
+  const apiKey = process.env.XAPEX_API_KEY;
+  if (!apiKey) throw new Error("XAPEX_API_KEY is required for profile xapex.");
   return apiKey;
 }
 
@@ -265,6 +294,14 @@ function normalizeModel(model) {
   return model;
 }
 
+function normalizeXapexModel(model) {
+  const value = String(model || process.env.GPT_IMAGE_XAPEX_MODEL || DEFAULT_XAPEX_MODEL).trim();
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(value)) {
+    throw new Error("XApex model contains unsupported characters.");
+  }
+  return value;
+}
+
 function standardGenerationSizeFromRatio(size) {
   if (GENERATION_PIXEL_SIZES.has(size)) return size;
   const match = /^(\d+):(\d+)$/.exec(size || "");
@@ -284,7 +321,33 @@ function vipGenerationSize(size) {
   return size;
 }
 
+function xapexSize(size) {
+  const value = String(size || DEFAULT_XAPEX_SIZE).trim().toLowerCase();
+  if (XAPEX_SAFE_SIZES.has(value)) return value;
+  if (value === "auto") return DEFAULT_XAPEX_SIZE;
+
+  const ratio = /^(\d+):(\d+)$/.exec(value);
+  const pixels = /^(\d+)x(\d+)$/.exec(value);
+  const match = ratio || pixels;
+  if (!match) {
+    throw new Error(
+      `Unsupported XApex size: ${size}. Use a ratio, a pixel size, or one of 1024x1024, 1536x1024, 1024x1536.`,
+    );
+  }
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!width || !height) throw new Error(`Unsupported XApex size: ${size}.`);
+  if (width === height) return "1024x1024";
+  return width > height ? "1536x1024" : "1024x1536";
+}
+
 function validateSize(size, tier, operation) {
+  if (tier === "xapex") {
+    if (!XAPEX_SAFE_SIZES.has(size)) {
+      throw new Error(`Unsupported mapped XApex size: ${size}.`);
+    }
+    return;
+  }
   if (operation === "generate") {
     const valid = tier === "vip" ? VIP_GENERATION_PIXEL_SIZES : GENERATION_PIXEL_SIZES;
     if (!valid.has(size)) {
@@ -329,7 +392,11 @@ export function resolveImageOptions(
     throw new Error(`profile must be one of: ${[...VALID_PROFILES].join(", ")}.`);
   }
 
-  const explicitModel = normalizeModel(model);
+  const explicitModel = model
+    ? requestedProfile === "xapex"
+      ? normalizeXapexModel(model)
+      : normalizeModel(model)
+    : null;
   const requestedSize = size || null;
   const requestedQuality = quality || null;
   if (requestedQuality && !VALID_QUALITIES.has(requestedQuality)) {
@@ -354,7 +421,9 @@ export function resolveImageOptions(
   }
 
   let tier;
-  if (explicitModel) {
+  if (requestedProfile === "xapex") {
+    tier = "xapex";
+  } else if (explicitModel) {
     tier =
       explicitModel === ATLAS_MODEL
         ? "atlas"
@@ -364,7 +433,8 @@ export function resolveImageOptions(
   } else if (
     requestedProfile === "standard" ||
     requestedProfile === "vip" ||
-    requestedProfile === "atlas"
+    requestedProfile === "atlas" ||
+    requestedProfile === "xapex"
   ) {
     tier = requestedProfile;
   } else {
@@ -397,7 +467,9 @@ export function resolveImageOptions(
   let resolvedSize =
     requestedSize ||
     (operation === "generate"
-      ? tier === "vip"
+      ? tier === "xapex"
+        ? process.env.GPT_IMAGE_XAPEX_SIZE || DEFAULT_XAPEX_SIZE
+        : tier === "vip"
         ? process.env.GPT_IMAGE_VIP_GENERATION_SIZE ||
           process.env.GPT_IMAGE_VIP_SIZE ||
           process.env.GPT_IMAGE_HD_SIZE ||
@@ -405,14 +477,18 @@ export function resolveImageOptions(
         : process.env.GPT_IMAGE_GENERATION_SIZE ||
           process.env.GPT_IMAGE_STANDARD_SIZE ||
           DEFAULT_STANDARD_SIZE
-      : tier === "vip"
+      : tier === "xapex"
+        ? process.env.GPT_IMAGE_XAPEX_SIZE || DEFAULT_XAPEX_SIZE
+        : tier === "vip"
         ? process.env.GPT_IMAGE_VIP_SIZE || process.env.GPT_IMAGE_HD_SIZE || DEFAULT_VIP_SIZE
         : tier === "atlas"
           ? process.env.GPT_IMAGE_ATLAS_SIZE ||
             process.env.GPT_IMAGE_HD_SIZE ||
             DEFAULT_ATLAS_SIZE
           : process.env.GPT_IMAGE_STANDARD_SIZE || DEFAULT_STANDARD_SIZE);
-  if (operation === "generate") {
+  if (tier === "xapex") {
+    resolvedSize = xapexSize(resolvedSize);
+  } else if (operation === "generate") {
     resolvedSize = tier === "vip"
       ? vipGenerationSize(resolvedSize)
       : standardGenerationSizeFromRatio(resolvedSize);
@@ -420,7 +496,9 @@ export function resolveImageOptions(
   validateSize(resolvedSize, tier, operation);
 
   const resolvedQuality =
-    operation === "generate"
+    tier === "xapex"
+      ? requestedQuality || process.env.GPT_IMAGE_XAPEX_QUALITY || DEFAULT_XAPEX_QUALITY
+      : operation === "generate"
       ? null
       : tier === "vip"
       ? requestedQuality ||
@@ -436,13 +514,26 @@ export function resolveImageOptions(
             DEFAULT_ATLAS_QUALITY
         : null;
   const resolvedModel =
-    tier === "vip" ? VIP_MODEL : tier === "atlas" ? ATLAS_MODEL : STANDARD_MODEL;
+    tier === "xapex"
+      ? normalizeXapexModel(model)
+      : tier === "vip"
+        ? VIP_MODEL
+        : tier === "atlas"
+          ? ATLAS_MODEL
+          : STANDARD_MODEL;
   const resolvedCount = parseInteger(n ?? process.env.GPT_IMAGE_N, 1, "n", 1);
-  if (resolvedCount > MAX_GENERATION_COUNT) {
-    throw new Error(`n must be an integer between 1 and ${MAX_GENERATION_COUNT}.`);
+  const maxCount = tier === "xapex" ? MAX_XAPEX_GENERATION_COUNT : MAX_GENERATION_COUNT;
+  if (resolvedCount > maxCount) {
+    throw new Error(
+      tier === "xapex"
+        ? `n must be an integer between 1 and ${maxCount} for profile xapex.`
+        : `n must be an integer between 1 and ${maxCount}.`,
+    );
   }
   const routeReasons =
-    tier === "vip"
+    tier === "xapex"
+      ? [explicitModel ? "explicit-xapex-model" : "explicit-xapex-profile"]
+      : tier === "vip"
       ? vipReasons.length > 0
         ? vipReasons
         : [explicitModel ? "explicit-vip-model" : "explicit-vip-profile"]
@@ -680,17 +771,25 @@ function errorMessage(text, status) {
   }
 }
 
-async function postWithRetry(url, buildRequest) {
-  const apiKey = requireApiKey();
+async function postWithRetry(
+  url,
+  buildRequest,
+  {
+    keyProvider = requireApiKey,
+    timeoutEnv = "OPENAI_IMAGE_TIMEOUT_MS",
+    retriesEnv = "OPENAI_IMAGE_MAX_RETRIES",
+  } = {},
+) {
+  const apiKey = keyProvider();
   const timeoutMs = parseInteger(
-    process.env.OPENAI_IMAGE_TIMEOUT_MS,
+    process.env[timeoutEnv],
     DEFAULT_TIMEOUT_MS,
-    "OPENAI_IMAGE_TIMEOUT_MS",
+    timeoutEnv,
   );
   const maxRetries = parseInteger(
-    process.env.OPENAI_IMAGE_MAX_RETRIES,
+    process.env[retriesEnv],
     DEFAULT_MAX_RETRIES,
-    "OPENAI_IMAGE_MAX_RETRIES",
+    retriesEnv,
   );
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
@@ -741,6 +840,99 @@ export function postMultipart(url, form) {
     headers: { authorization: `Bearer ${apiKey}` },
     body: form,
   }));
+}
+
+export function postXapexJson(url, payload) {
+  return postWithRetry(
+    url,
+    (apiKey) => ({
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
+    {
+      keyProvider: requireXapexApiKey,
+      timeoutEnv: "XAPEX_IMAGE_TIMEOUT_MS",
+      retriesEnv: "XAPEX_IMAGE_MAX_RETRIES",
+    },
+  );
+}
+
+export function postXapexMultipart(url, form) {
+  return postWithRetry(
+    url,
+    (apiKey) => ({
+      method: "POST",
+      headers: { authorization: `Bearer ${apiKey}` },
+      body: form,
+    }),
+    {
+      keyProvider: requireXapexApiKey,
+      timeoutEnv: "XAPEX_IMAGE_TIMEOUT_MS",
+      retriesEnv: "XAPEX_IMAGE_MAX_RETRIES",
+    },
+  );
+}
+
+export function getXapexJson(url) {
+  return postWithRetry(
+    url,
+    (apiKey) => ({
+      method: "GET",
+      headers: { authorization: `Bearer ${apiKey}` },
+    }),
+    {
+      keyProvider: requireXapexApiKey,
+      timeoutEnv: "XAPEX_IMAGE_TIMEOUT_MS",
+      retriesEnv: "XAPEX_IMAGE_MAX_RETRIES",
+    },
+  );
+}
+
+export async function runXapexTask(started) {
+  const taskId = started?.task_id || started?.id;
+  if (!taskId) throw new Error("XApex async response did not include task_id or id.");
+  const pollUrl = `${buildXapexBaseUrl()}/images/tasks/${encodeURIComponent(taskId)}`;
+  const timeoutMs = parseInteger(
+    process.env.XAPEX_POLL_TIMEOUT_MS,
+    DEFAULT_XAPEX_POLL_TIMEOUT_MS,
+    "XAPEX_POLL_TIMEOUT_MS",
+    1000,
+  );
+  const intervalMs = parseInteger(
+    process.env.XAPEX_POLL_INTERVAL_MS,
+    DEFAULT_XAPEX_POLL_INTERVAL_MS,
+    "XAPEX_POLL_INTERVAL_MS",
+    100,
+  );
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const task = await getXapexJson(pollUrl);
+    const status = task?.status;
+    if (status === "completed") {
+      const result = task?.result?.data
+        ? task.result
+        : Array.isArray(task?.data)
+          ? task
+          : task?.image_url
+            ? { data: [{ url: task.image_url }] }
+            : null;
+      if (!result) throw new Error("XApex async task completed without image result data.");
+      return { taskId, task, result };
+    }
+    if (status === "failed") {
+      const message = task?.error?.message || task?.error || "XApex async image task failed.";
+      throw new Error(String(message));
+    }
+    if (!["created", "processing", "pending", "queued"].includes(status)) {
+      throw new Error(`XApex async task returned an unknown status: ${status}`);
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(`XApex async task timed out after ${timeoutMs} ms.`);
 }
 
 async function atlasRequest(url, { method = "GET", payload } = {}) {
@@ -935,13 +1127,15 @@ export function shouldUseAtlasFallback(error) {
 
 export function publicPlan(operation, options, extra = {}) {
   const isAtlas = options.tier === "atlas";
+  const isXapex = options.tier === "xapex";
+  const isAsync = Boolean(extra.async);
   const canAtlasFallback = options.tier === "vip" && operation === "edit";
   return {
     operation,
-    provider: isAtlas ? "atlascloud" : "aifast",
+    provider: isAtlas ? "atlascloud" : isXapex ? "xapex" : "aifast",
     endpoint: isAtlas
       ? `${buildAtlasBaseUrl()}/generateImage`
-      : `${buildBaseUrl()}/images/${operation === "edit" ? "edits" : "generations"}`,
+      : `${isXapex ? buildXapexBaseUrl() : buildBaseUrl()}/images/${operation === "edit" ? "edits" : "generations"}${isXapex && isAsync ? "/async" : ""}`,
     fallbackProvider: canAtlasFallback ? "atlascloud" : undefined,
     fallbackEndpoint: canAtlasFallback ? `${buildAtlasBaseUrl()}/generateImage` : undefined,
     requestedProfile: options.requestedProfile,

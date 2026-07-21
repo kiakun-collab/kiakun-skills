@@ -7,8 +7,32 @@
 | Standard | aifast.site | `gpt-image-2` | Generation and ordinary single-reference edits |
 | VIP | aifast.site | `gpt-image-2-max` | Primary max-model, multi-reference, and precision-sensitive route |
 | Atlas fallback | AtlasCloud | `openai/gpt-image-2/edit` | Backup for VIP edit failures and explicit `--profile atlas` |
+| XApex | cn.xapex.cc | `gpt-image-2` by default | Independent sync/async generation and edits |
 
 `--profile hd` maps to `vip` for compatibility with the previous AtlasCloud-only version.
+
+## XApex Route
+
+- Base URL: `https://cn.xapex.cc/v1`
+- Authentication: `XAPEX_API_KEY` from the XApex `图片` group
+- Generate: `POST /images/generations`
+- Edit: `POST /images/edits` as multipart form data
+- Async generate/edit: append `/async`, then poll `GET /images/tasks/{task_id}` with the same key
+- Model: `GPT_IMAGE_XAPEX_MODEL`, default `gpt-image-2`
+- Quality: `low`, `medium`, `high`, or `auto`; sent for generation and edits
+- Count: `n=1..9`; multi-image requests are billed approximately per image
+
+The XApex profile is intentionally independent: it never reads `OPENAI_API_KEY` or
+`OPENAI_BASE_URL`, never auto-promotes to `gpt-image-2-max`, and never falls back to AtlasCloud.
+Use `XAPEX_BASE_URL`, `GPT_IMAGE_XAPEX_MODEL`, `GPT_IMAGE_XAPEX_SIZE`,
+`GPT_IMAGE_XAPEX_QUALITY`, `XAPEX_IMAGE_TIMEOUT_MS`, `XAPEX_IMAGE_MAX_RETRIES`,
+`XAPEX_POLL_INTERVAL_MS`, and `XAPEX_POLL_TIMEOUT_MS`.
+
+XApex's safest output sizes are `1024x1024`, `1536x1024`, and `1024x1536`. The scripts map
+other ratio or pixel inputs client-side to one of these three sizes so requested and expected
+output dimensions remain explicit. Live smoke tests on 2026-07-21 returned `1254x1254` PNGs for
+both sync and async `1024x1024` requests, so treat the request size as a routing hint and inspect
+the saved-image metadata. The scripts emit a warning whenever returned dimensions differ.
 
 ## aifast Standard/VIP Route
 

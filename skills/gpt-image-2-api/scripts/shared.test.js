@@ -56,6 +56,11 @@ function testEnv(baseUrl) {
   return {
     OPENAI_API_KEY: "test-key",
     OPENAI_BASE_URL: baseUrl,
+    XAPEX_API_KEY: "xapex-test-key",
+    XAPEX_BASE_URL: baseUrl,
+    XAPEX_IMAGE_MAX_RETRIES: "0",
+    XAPEX_POLL_INTERVAL_MS: "100",
+    XAPEX_POLL_TIMEOUT_MS: "5000",
     ATLASCLOUD_API_KEY: "atlas-test-key",
     ATLASCLOUD_BASE_URL: `${baseUrl}/api/v1/model`,
     ATLASCLOUD_POLL_INTERVAL_MS: "100",
@@ -91,6 +96,35 @@ test("rejects image counts above the paid-request safety limit", () => {
   assert.throws(
     () => resolveImageOptions({ n: 11 }),
     /n must be an integer between 1 and 10/,
+  );
+});
+
+test("XApex is an independent profile with its own model, quality, and size mapping", () => {
+  const options = resolveImageOptions(
+    { profile: "xapex", model: "gpt-image-2", size: "1920x1080", quality: "medium" },
+    { operation: "generate" },
+  );
+  assert.deepEqual(options, {
+    requestedProfile: "xapex",
+    tier: "xapex",
+    model: "gpt-image-2",
+    size: "1536x1024",
+    quality: "medium",
+    n: 1,
+    routeReasons: ["explicit-xapex-model"],
+  });
+});
+
+test("XApex maps portrait ratios and enforces its documented n limit", () => {
+  const options = resolveImageOptions(
+    { profile: "xapex", size: "9:16" },
+    { operation: "generate" },
+  );
+  assert.equal(options.size, "1024x1536");
+  assert.equal(options.quality, "low");
+  assert.throws(
+    () => resolveImageOptions({ profile: "xapex", n: 10 }),
+    /between 1 and 9 for profile xapex/,
   );
 });
 
@@ -352,6 +386,103 @@ test("standard generation omits quality and saves every image", async () => {
     assert.equal("response_format" in body, false);
     assert.deepEqual(await readFile(path.join(cwd, "result-1.png")), PNG);
     assert.deepEqual(await readFile(path.join(cwd, "result-2.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("XApex generation uses isolated credentials and sends quality", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "xapex-generate-"));
+  let body;
+  let authorization;
+  try {
+    await withGateway(
+      async (request, response) => {
+        assert.equal(request.url, "/v1/images/generations");
+        authorization = request.headers.authorization;
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      (baseUrl) =>
+        runNode(
+          "generate.js",
+          [
+            "--profile",
+            "xapex",
+            "--prompt",
+            "xapex test image",
+            "--quality",
+            "low",
+            "--output",
+            "result.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
+          cwd,
+          testEnv(baseUrl),
+        ),
+    );
+    assert.equal(authorization, "Bearer xapex-test-key");
+    assert.equal(body.model, "gpt-image-2");
+    assert.equal(body.size, "1024x1024");
+    assert.equal(body.quality, "low");
+    assert.deepEqual(await readFile(path.join(cwd, "result.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("XApex async generation submits once and polls with the same isolated key", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "xapex-async-generate-"));
+  let submitCount = 0;
+  let pollCount = 0;
+  try {
+    await withGateway(
+      async (request, response) => {
+        assert.equal(request.headers.authorization, "Bearer xapex-test-key");
+        if (request.method === "POST") {
+          submitCount += 1;
+          assert.equal(request.url, "/v1/images/generations/async");
+          response.writeHead(202, { "content-type": "application/json" });
+          response.end(JSON.stringify({ task_id: "imgtask-test", status: "processing" }));
+          return;
+        }
+        pollCount += 1;
+        assert.equal(request.url, "/v1/images/tasks/imgtask-test");
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            task_id: "imgtask-test",
+            status: "completed",
+            result: { data: [{ b64_json: PNG.toString("base64") }] },
+          }),
+        );
+      },
+      (baseUrl) =>
+        runNode(
+          "generate.js",
+          [
+            "--profile",
+            "xapex",
+            "--async",
+            "--prompt",
+            "xapex async test",
+            "--output",
+            "result.png",
+            "--prompt-output",
+            "prompt.md",
+            "--json",
+          ],
+          cwd,
+          testEnv(baseUrl),
+        ),
+    );
+    assert.equal(submitCount, 1);
+    assert.equal(pollCount, 1);
+    assert.deepEqual(await readFile(path.join(cwd, "result.png")), PNG);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -649,6 +780,51 @@ test("single-reference edit uses standard model", async () => {
     );
     assert.match(multipart, /name="model"\r\n\r\ngpt-image-2/);
     assert.doesNotMatch(multipart, /name="quality"/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("XApex edit uses isolated credentials and multipart quality", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "xapex-edit-"));
+  let multipart = "";
+  let authorization;
+  try {
+    await writeFile(path.join(cwd, "one.png"), PNG);
+    await withGateway(
+      async (request, response) => {
+        assert.equal(request.url, "/v1/images/edits");
+        authorization = request.headers.authorization;
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        multipart = Buffer.concat(chunks).toString("latin1");
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      (baseUrl) =>
+        runNode(
+          "edit.js",
+          [
+            "--profile",
+            "xapex",
+            "--image",
+            "one.png",
+            "--prompt",
+            "replace background",
+            "--quality",
+            "low",
+            "--output",
+            "edited.png",
+            "--prompt-output",
+            "prompt.md",
+          ],
+          cwd,
+          testEnv(baseUrl),
+        ),
+    );
+    assert.equal(authorization, "Bearer xapex-test-key");
+    assert.match(multipart, /name="model"\r\n\r\ngpt-image-2/);
+    assert.match(multipart, /name="quality"\r\n\r\nlow/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -123,7 +123,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **html-to-pptx** | `skills/html-to-pptx/` | HTML 转可编辑 PPTX | 浏览器渲染 + DOM 几何提取、角色分类与整洁扁平化、原生对象构建、PowerPoint COM 渲染、SSIM 双门禁与自动返修 |
 | **game-ui-asset-pipeline** | `skills/game-ui-asset-pipeline/` | 游戏 UI 资产流水线 | 生成、清理、切片、验证并导入 Godot 游戏 UI 图标、HUD glyph、九宫格面板和按钮皮肤 |
 | **player-interaction-design** | `skills/player-interaction-design/` | 游戏玩家互动设计 | 先写玩家入口、主操作、可见反馈、失败恢复和证据层级合同 |
-| **gpt-image-2-api** | `skills/gpt-image-2-api/` | GPT Image 2 API | 日常默认标准版，复杂、高精度、多参考图或受支持的 2K/4K 规格时升级 VIP |
+| **gpt-image-2-api** | `skills/gpt-image-2-api/` | GPT Image 2 API | 独立支持 aifast 标准/VIP、XApex 同步/异步与 AtlasCloud 编辑备用通道 |
 
 ---
 
@@ -188,13 +188,15 @@ cp -r skills/xiaohongshu <openclaw-project>/skills/
 ```bash
 cd <agent-skills-dir>/gpt-image-2-api
 cp .env.example .gateway.env
-# 填写 OPENAI_API_KEY；只有需要 AtlasCloud 备用编辑通道时才填写 ATLASCLOUD_API_KEY
+# aifast 填写 OPENAI_API_KEY；XApex 图片组令牌填写 XAPEX_API_KEY
+# 只有需要 AtlasCloud 备用编辑通道时才填写 ATLASCLOUD_API_KEY
 node scripts/check-config.js
 node scripts/generate.js --prompt "smoke test image" --dry-run --json
+node scripts/generate.js --profile xapex --prompt "XApex smoke test" --quality low --dry-run --json
 ```
 
-`check-config.js` 看到 `ready: true`、`hasApiKey: true`、`defaultProfile: auto`、`timeoutMs: none`
-即代表标准/VIP 主通道配置可用。
+`check-config.js` 通过 `hasApiKey` 与 `hasXapexApiKey` 分别报告 aifast 和 XApex 凭据状态；
+XApex 使用独立 Base URL、模型、尺寸、quality、重试和异步轮询配置。
 
 ---
 
@@ -436,10 +438,10 @@ kiakun-skills/
 
 ### gpt-image-2-api（GPT Image 2 API）
 
-通过 OpenAI-compatible 图片接口生成或编辑图片。日常任务默认使用成本更低的 `gpt-image-2`；复杂信息图、高精度内容、多个参考图或受支持的 2K/4K 规格使用 `gpt-image-2-vip`。VIP 编辑失败时可用 AtlasCloud 作为备用通道。提供 `--dry-run` 路由预览、`check-config.js` 配置检查、清晰的生成/编辑路径、参数校验、多图保存、超时与自动重试。
+通过 OpenAI-compatible 图片接口生成或编辑图片。aifast 日常任务默认使用成本更低的 `gpt-image-2`，复杂信息图、高精度内容、多个参考图或受支持的 2K/4K 规格使用 `gpt-image-2-max`；VIP 编辑失败时可用 AtlasCloud 作为备用通道。XApex 作为完全独立的 `xapex` profile，支持自己的图片组令牌、quality、尺寸映射、同步生成/编辑以及异步任务轮询。提供 `--dry-run` 路由预览、`check-config.js` 配置检查、参数校验、多图保存、超时与自动重试。
 
 **典型用法：**
-> "生成一张日常社交配图；如果是复杂信息图或 4K 海报，再自动使用 VIP。"
+> "通过 XApex 异步生成一张社交配图；复杂 4K 海报则使用 aifast VIP。"
 
 详见 `skills/gpt-image-2-api/SKILL.md`。
 

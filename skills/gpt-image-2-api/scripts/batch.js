@@ -21,11 +21,11 @@ Input (choose one):
   --batch <path>        JSON array or JSONL manifest; each task configured on its own.
 
 Shared params (promptlist mode, and defaults for manifest tasks):
-  --profile <name>      auto | standard | vip | atlas
+  --profile <name>      auto | standard | vip | atlas | xapex
   --model <name>        Explicit model override
   --size <preset>       Output preset
-  --quality <level>     VIP/Atlas only: auto | low | medium | high
-  --n <count>           Images per generate task, 1-10
+  --quality <level>     XApex/VIP/Atlas: auto | low | medium | high
+  --n <count>           Images per generate task, XApex 1-9; others 1-10
 
 Batch control:
   --concurrency <n>     Parallel tasks (default: 2)

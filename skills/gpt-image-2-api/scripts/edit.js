@@ -17,6 +17,7 @@ import {
   loadAmbientEnv,
   mimeFor,
   postMultipart,
+  postXapexMultipart,
   printJson,
   publicPlan,
   readPromptInput,
@@ -24,6 +25,7 @@ import {
   resolveOutput,
   responseSummary,
   runAtlasEdit,
+  runXapexTask,
   saveImage,
   savePrompt,
   shouldUseAtlasFallback,
@@ -47,10 +49,11 @@ Required prompt input (choose one):
   --promptfile <path>      Load instructions from a UTF-8 file
 
 Routing and image parameters:
-  --profile <name>         auto | standard | vip | atlas (hd is a vip compatibility alias)
-  --model <name>           Explicit gpt-image-2, gpt-image-2-max, or openai/gpt-image-2/edit
+  --profile <name>         auto | standard | vip | atlas | xapex (hd is a vip compatibility alias)
+  --model <name>           Explicit model override; XApex defaults to gpt-image-2
   --size <preset>          Listed output preset
-  --quality <level>        VIP/Atlas only: auto | low | medium | high
+  --quality <level>        XApex/VIP/Atlas: auto | low | medium | high
+  --async                  XApex only: submit a task and poll until completed
 
 Output:
   --output <path>          Image path (default: ${DEFAULT_OUTPUT_ROOT}/edited/...)
@@ -81,6 +84,7 @@ function parseArgs(argv) {
     if (arg === "-h" || arg === "--help") config.help = true;
     else if (arg === "--json") config.json = true;
     else if (arg === "--dry-run") config.dryRun = true;
+    else if (arg === "--async") config.async = true;
     else if (arg === "--image" || arg === "--url") {
       const value = argv[++index];
       if (!value) throw new Error(`Missing value for ${arg}`);
@@ -121,7 +125,9 @@ async function requestEdit(config, prompt, options, endpoint) {
 
   const payload = buildApiPayload(options, { prompt });
   for (const [key, value] of Object.entries(payload)) appendFormValue(form, key, value);
-  return postMultipart(endpoint, form);
+  return options.tier === "xapex"
+    ? postXapexMultipart(endpoint, form)
+    : postMultipart(endpoint, form);
 }
 
 async function atlasImages(config) {
@@ -161,7 +167,11 @@ export async function editImages(config) {
   const prompt = await readPromptInput(config.prompt, config.promptFile);
   const referenceCount = config.images.length + config.urls.length;
   const options = resolveImageOptions(config, { referenceCount });
+  if (config.async && options.tier !== "xapex") {
+    throw new Error("--async is currently supported only with --profile xapex.");
+  }
   const plan = publicPlan("edit", options, {
+    async: Boolean(config.async),
     sourceType: config.images.length > 0 ? "files" : "urls",
     referenceCount,
   });
@@ -174,12 +184,18 @@ export async function editImages(config) {
   let images;
   let usedProvider = plan.provider;
   let fallbackFrom = null;
+  let taskId = null;
   if (options.tier === "atlas") {
     response = await requestAtlasEdit(config, prompt, options);
     images = await extractAtlasImages(response.outputs);
   } else {
     try {
       response = await requestEdit(config, prompt, options, plan.endpoint);
+      if (config.async) {
+        const completed = await runXapexTask(response);
+        taskId = completed.taskId;
+        response = completed.result;
+      }
       images = await extractGeneratedImages(response);
     } catch (error) {
       if (options.tier !== "vip" || !shouldUseAtlasFallback(error)) throw error;
@@ -199,6 +215,7 @@ export async function editImages(config) {
 
   return {
     ...plan,
+    taskId,
     usedProvider,
     fallbackFrom,
     savedImages,
