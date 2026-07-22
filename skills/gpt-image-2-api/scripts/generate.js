@@ -14,7 +14,9 @@ import {
   printJson,
   publicPlan,
   readPromptInput,
+  resolveAifastFallbackOptions,
   resolveImageOptions,
+  resolveXapexAsync,
   resolveOutput,
   responseSummary,
   saveImage,
@@ -22,6 +24,7 @@ import {
   slugify,
   summarizeSavedImages,
   runXapexTask,
+  shouldUseDefaultFallback,
 } from "./shared.js";
 
 function help() {
@@ -40,7 +43,8 @@ Routing and image parameters:
   --size <preset>          Standard 1K preset, VIP/max 1K/2K/4K preset, or ratio mapped to a preset
   --quality <level>        XApex API field; aifast auto uses it only as a VIP route hint
   --n <count>              Number of images, XApex 1-9; other profiles 1-10 (default: 1)
-  --async                  XApex only: submit a task and poll until completed
+  --async                  Force XApex asynchronous submission (the default)
+  --sync                   Force XApex synchronous submission
 
 Output:
   --output <path>          Image path (default: ${DEFAULT_OUTPUT_ROOT}/generated/...)
@@ -75,6 +79,7 @@ function parseArgs(argv) {
     else if (arg === "--json") config.json = true;
     else if (arg === "--dry-run") config.dryRun = true;
     else if (arg === "--async") config.async = true;
+    else if (arg === "--sync") config.async = false;
     else if (names.has(arg)) {
       const value = argv[++index];
       if (!value) throw new Error(`Missing value for ${arg}`);
@@ -93,10 +98,11 @@ export async function generateImage(config) {
   if (options.tier === "atlas") {
     throw new Error("AtlasCloud fallback uses an edit-only model and requires at least one reference image; use edit.js.");
   }
-  if (config.async && options.tier !== "xapex") {
+  if (config.async === true && options.tier !== "xapex") {
     throw new Error("--async is currently supported only with --profile xapex.");
   }
-  const plan = publicPlan("generate", options, { async: Boolean(config.async) });
+  const asyncMode = resolveXapexAsync(config, options);
+  const plan = publicPlan("generate", options, { async: asyncMode });
   if (config.dryRun) return plan;
 
   const hint = slugify(prompt.split(/\s+/).slice(0, 8).join(" "), "generated-image");
@@ -105,28 +111,56 @@ export async function generateImage(config) {
   const images = [];
   const responseSummaries = [];
   let taskId = null;
-  const sendJson = options.tier === "xapex" ? postXapexJson : postJson;
-  if (config.async) {
-    const started = await sendJson(
-      plan.endpoint,
-      buildApiPayload(options, { prompt, n: options.n }),
-    );
-    const completed = await runXapexTask(started);
-    taskId = completed.taskId;
-    images.push(...(await extractGeneratedImages(completed.result)));
-    responseSummaries.push(responseSummary(completed.result));
-  } else while (images.length < options.n) {
-    const remaining = options.n - images.length;
-    const response = await sendJson(
-      plan.endpoint,
-      buildApiPayload(options, {
-        prompt,
-        n: remaining,
-      }),
-    );
-    const batch = await extractGeneratedImages(response);
-    images.push(...batch.slice(0, remaining));
-    responseSummaries.push(responseSummary(response));
+  let activeOptions = options;
+  let activePlan = plan;
+  let activeAsync = asyncMode;
+  let usedProvider = plan.provider;
+  let fallbackFrom = null;
+  const fallbackAttempts = [];
+
+  const collectImages = async () => {
+    const sendJson = activeOptions.tier === "xapex" ? postXapexJson : postJson;
+    if (activeAsync) {
+      const started = await sendJson(
+        activePlan.endpoint,
+        buildApiPayload(activeOptions, { prompt, n: activeOptions.n }),
+      );
+      const completed = await runXapexTask(started);
+      taskId = completed.taskId;
+      images.push(...(await extractGeneratedImages(completed.result)));
+      responseSummaries.push(responseSummary(completed.result));
+      return;
+    }
+    while (images.length < activeOptions.n) {
+      const remaining = activeOptions.n - images.length;
+      const response = await sendJson(
+        activePlan.endpoint,
+        buildApiPayload(activeOptions, { prompt, n: remaining }),
+      );
+      const batch = await extractGeneratedImages(response);
+      images.push(...batch.slice(0, remaining));
+      responseSummaries.push(responseSummary(response));
+    }
+  };
+
+  try {
+    await collectImages();
+  } catch (error) {
+    if (
+      options.requestedProfile !== "auto" ||
+      options.tier !== "xapex" ||
+      !shouldUseDefaultFallback(error)
+    ) throw error;
+    fallbackFrom = error instanceof Error ? error.message : String(error);
+    fallbackAttempts.push({ provider: "xapex", error: fallbackFrom });
+    images.length = 0;
+    responseSummaries.length = 0;
+    taskId = null;
+    activeOptions = resolveAifastFallbackOptions(config, { operation: "generate" });
+    activeAsync = false;
+    activePlan = publicPlan("generate", activeOptions, { async: false });
+    usedProvider = "aifast";
+    await collectImages();
   }
   const savedImages = [];
   for (let index = 0; index < images.length; index += 1) {
@@ -134,11 +168,16 @@ export async function generateImage(config) {
     await saveImage(imagePath, images[index]);
     savedImages.push(imagePath);
   }
-  const imageSummary = summarizeSavedImages(images, savedImages, options.size);
+  const imageSummary = summarizeSavedImages(images, savedImages, activeOptions.size);
 
   return {
     ...plan,
     taskId,
+    usedProvider,
+    fallbackFrom,
+    fallbackAttempts,
+    finalEndpoint: activePlan.endpoint,
+    finalModel: activeOptions.model,
     savedImages,
     savedPrompt: promptPath,
     ...imageSummary,

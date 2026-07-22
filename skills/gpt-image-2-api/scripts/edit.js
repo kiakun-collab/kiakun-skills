@@ -7,6 +7,7 @@ import {
   DEFAULT_OUTPUT_ROOT,
   addOutputIndex,
   appendFormValue,
+  buildAtlasBaseUrl,
   buildAtlasEditPayload,
   buildApiPayload,
   buildDefaultImagePath,
@@ -21,7 +22,9 @@ import {
   printJson,
   publicPlan,
   readPromptInput,
+  resolveAifastFallbackOptions,
   resolveImageOptions,
+  resolveXapexAsync,
   resolveOutput,
   responseSummary,
   runAtlasEdit,
@@ -29,6 +32,7 @@ import {
   saveImage,
   savePrompt,
   shouldUseAtlasFallback,
+  shouldUseDefaultFallback,
   slugify,
   summarizeSavedImages,
 } from "./shared.js";
@@ -53,7 +57,8 @@ Routing and image parameters:
   --model <name>           Explicit model override; XApex defaults to gpt-image-2
   --size <preset>          Listed output preset
   --quality <level>        XApex/VIP/Atlas: auto | low | medium | high
-  --async                  XApex only: submit a task and poll until completed
+  --async                  Force XApex asynchronous submission (the default)
+  --sync                   Force XApex synchronous submission
 
 Output:
   --output <path>          Image path (default: ${DEFAULT_OUTPUT_ROOT}/edited/...)
@@ -85,6 +90,7 @@ function parseArgs(argv) {
     else if (arg === "--json") config.json = true;
     else if (arg === "--dry-run") config.dryRun = true;
     else if (arg === "--async") config.async = true;
+    else if (arg === "--sync") config.async = false;
     else if (arg === "--image" || arg === "--url") {
       const value = argv[++index];
       if (!value) throw new Error(`Missing value for ${arg}`);
@@ -167,11 +173,12 @@ export async function editImages(config) {
   const prompt = await readPromptInput(config.prompt, config.promptFile);
   const referenceCount = config.images.length + config.urls.length;
   const options = resolveImageOptions(config, { referenceCount });
-  if (config.async && options.tier !== "xapex") {
+  if (config.async === true && options.tier !== "xapex") {
     throw new Error("--async is currently supported only with --profile xapex.");
   }
+  const asyncMode = resolveXapexAsync(config, options);
   const plan = publicPlan("edit", options, {
-    async: Boolean(config.async),
+    async: asyncMode,
     sourceType: config.images.length > 0 ? "files" : "urls",
     referenceCount,
   });
@@ -184,25 +191,55 @@ export async function editImages(config) {
   let images;
   let usedProvider = plan.provider;
   let fallbackFrom = null;
+  const fallbackAttempts = [];
   let taskId = null;
+  let finalOptions = options;
+  let finalEndpoint = plan.endpoint;
   if (options.tier === "atlas") {
     response = await requestAtlasEdit(config, prompt, options);
     images = await extractAtlasImages(response.outputs);
   } else {
     try {
       response = await requestEdit(config, prompt, options, plan.endpoint);
-      if (config.async) {
+      if (asyncMode) {
         const completed = await runXapexTask(response);
         taskId = completed.taskId;
         response = completed.result;
       }
       images = await extractGeneratedImages(response);
     } catch (error) {
-      if (options.tier !== "vip" || !shouldUseAtlasFallback(error)) throw error;
-      fallbackFrom = error instanceof Error ? error.message : String(error);
-      response = await requestAtlasEdit(config, prompt, options);
-      images = await extractAtlasImages(response.outputs);
-      usedProvider = "atlascloud";
+      const message = error instanceof Error ? error.message : String(error);
+      const isDefaultXapex = options.requestedProfile === "auto" && options.tier === "xapex";
+      if (isDefaultXapex && shouldUseDefaultFallback(error)) {
+        fallbackFrom = message;
+        fallbackAttempts.push({ provider: "xapex", error: message });
+        try {
+          response = await requestAtlasEdit(config, prompt, options);
+          images = await extractAtlasImages(response.outputs);
+          usedProvider = "atlascloud";
+          finalEndpoint = `${buildAtlasBaseUrl()}/generateImage`;
+        } catch (atlasError) {
+          const atlasMessage = atlasError instanceof Error ? atlasError.message : String(atlasError);
+          fallbackAttempts.push({ provider: "atlascloud", error: atlasMessage });
+          finalOptions = resolveAifastFallbackOptions(config, {
+            operation: "edit",
+            referenceCount,
+          });
+          const aifastPlan = publicPlan("edit", finalOptions, { async: false });
+          response = await requestEdit(config, prompt, finalOptions, aifastPlan.endpoint);
+          images = await extractGeneratedImages(response);
+          usedProvider = "aifast";
+          finalEndpoint = aifastPlan.endpoint;
+        }
+      } else {
+        if (options.tier !== "vip" || !shouldUseAtlasFallback(error)) throw error;
+        fallbackFrom = message;
+        fallbackAttempts.push({ provider: "aifast", error: message });
+        response = await requestAtlasEdit(config, prompt, options);
+        images = await extractAtlasImages(response.outputs);
+        usedProvider = "atlascloud";
+        finalEndpoint = `${buildAtlasBaseUrl()}/generateImage`;
+      }
     }
   }
   const savedImages = [];
@@ -211,13 +248,16 @@ export async function editImages(config) {
     await saveImage(imagePath, images[index]);
     savedImages.push(imagePath);
   }
-  const imageSummary = summarizeSavedImages(images, savedImages, options.size);
+  const imageSummary = summarizeSavedImages(images, savedImages, finalOptions.size);
 
   return {
     ...plan,
     taskId,
     usedProvider,
     fallbackFrom,
+    fallbackAttempts,
+    finalEndpoint,
+    finalModel: usedProvider === "atlascloud" ? "openai/gpt-image-2/edit" : finalOptions.model,
     savedImages,
     savedPrompt: promptPath,
     ...imageSummary,

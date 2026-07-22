@@ -1,6 +1,6 @@
 ---
 name: gpt-image-2-api
-description: Generate or edit images through independent aifast.site, XApex, and AtlasCloud routes with cost-aware routing, gpt-image-2-max support, XApex sync/async tasks, AtlasCloud edit fallback, and batch generation. Use for text-to-image, local or URL reference editing, multi-reference composition, precision-sensitive graphics, XApex image-group tokens, provider-specific sizes and quality, batch jobs, and resilient editing.
+description: Generate or edit images with XApex asynchronous tasks as the default route, AtlasCloud as the first edit fallback, and aifast as the final fallback, plus forced-provider profiles and batch generation. Use for text-to-image, local or URL reference editing, multi-reference composition, precision-sensitive graphics, XApex image-group tokens, provider-specific sizes and quality, resilient routing, and batch jobs.
 ---
 
 # GPT Image 2 API
@@ -22,10 +22,13 @@ node scripts/edit.js --image photo.png --prompt "add sunglasses"
 # Batch: many prompts at once
 node scripts/batch.js --promptlist prompts.txt
 
-# XApex: isolated credentials, quality, size mapping, and optional async polling
-node scripts/generate.js --profile xapex --prompt "a red fox in snow" --quality low
-node scripts/edit.js --profile xapex --image photo.png --prompt "add sunglasses"
-node scripts/generate.js --profile xapex --async --prompt "a lighthouse at dusk"
+# Default: XApex asynchronous submission and polling
+node scripts/generate.js --prompt "a red fox in snow" --quality low
+node scripts/edit.js --image photo.png --prompt "add sunglasses"
+
+# Force synchronous XApex or a specific fallback provider only when needed
+node scripts/generate.js --sync --prompt "a lighthouse at dusk"
+node scripts/generate.js --profile vip --prompt "force aifast max"
 ```
 
 Add `--dry-run` for a no-cost route/cost preview. Add `--json` for a machine-readable result.
@@ -48,7 +51,7 @@ When the user supplies a reference image, decide **why** the pixels matter, then
 Face swap, same character across scenes, keep this exact product/logo, "use this photo",
 composition or subject must carry over. The model needs the actual pixels as context.
 → Use `edit.js` with `--image`/`--url`. For multi-image consistency (e.g. character + scene),
-pass every needed reference; two or more references auto-route to VIP.
+pass every needed reference; the default XApex edit accepts multiple references.
 
 **B. Style / material / palette only — borrow the look, not the subject.**
 "Same art style as this", "this brushwork/texture", "this color mood", but a *new* subject or
@@ -89,7 +92,7 @@ node scripts/batch.js --batch tasks.json
 ]
 ```
 
-Per-task fields: `prompt` or `promptfile`, `profile`, `model`, `size`, `quality`, `n`,
+Per-task fields: `prompt` or `promptfile`, `profile`, `model`, `size`, `quality`, `n`, `async`,
 `output`, and `images` / `urls` (presence of either routes the task to `edit.js`).
 
 Batch flags: `--concurrency <n>` (default 2, keeps clear of rate limits), `--output-dir <dir>`
@@ -127,30 +130,30 @@ sent as an API field. Standard `gpt-image-2` uses the provider 1K create sizes. 
 
 ## Routing
 
-Default `--profile auto`. In `auto`, multiple reference images, explicit `--quality`, or a
-2K/4K preset promote the task to VIP automatically.
+Default `--profile auto`. In `auto`, XApex handles the task asynchronously first. Provider
+fallback is capability-aware and records each failed attempt in structured JSON.
 
 | Task | Primary route | Fallback |
 |---|---|---|
-| Text-to-image, daily illustration, social post | Standard `gpt-image-2` | None |
-| Ordinary edit with one reference | Standard `gpt-image-2` | None |
-| Multiple references or explicit `--quality` | VIP `gpt-image-2-max` | AtlasCloud (edit only) |
-| Precision-sensitive work or explicit max model | VIP `gpt-image-2-max` | AtlasCloud (edit only) |
-| XApex image-group token, sync or async | XApex `gpt-image-2` | None |
+| Text-to-image | XApex `gpt-image-2` async | aifast; AtlasCloud is skipped because it is edit-only |
+| Image edit, one or multiple references | XApex `gpt-image-2` async | AtlasCloud, then aifast |
+| Explicit `--profile xapex` | XApex only, async by default | None |
+| Explicit `--profile atlas` | AtlasCloud edit only | None |
+| Explicit `--profile standard|vip` | aifast only | Existing VIP-to-Atlas edit fallback remains |
 
 `--profile hd` is a legacy alias for `vip`. Use `--profile atlas` only to force the AtlasCloud
 channel for diagnosis. AtlasCloud uses `openai/gpt-image-2/edit`, so it needs at least one
 reference image; VIP text-to-image does not fall back. Disable edit fallback with
 `GPT_IMAGE_ATLAS_FALLBACK=false`.
 
-`--profile xapex` is isolated from aifast and AtlasCloud: it uses `XAPEX_API_KEY`,
-`XAPEX_BASE_URL`, its own model/size/quality defaults, request retries, and async polling settings.
+`--profile xapex` forces the isolated XApex route. Leave the profile at `auto` to enable the
+default priority chain. Provider keys and Base URLs remain isolated throughout fallback.
 
 ## Parameters
 
 - Prompt: use exactly one of `--prompt` or `--promptfile`.
-- Routing: `--profile auto|standard|vip|atlas|xapex`; prefer `auto` for aifast and select
-  `xapex` explicitly for XApex (`hd` = legacy alias for `vip`).
+- Routing: `--profile auto|standard|vip|atlas|xapex`; prefer `auto` for XApex-first resilient
+  routing. Explicit profiles force a provider (`hd` = legacy alias for `vip`).
 - References for editing: repeat `--image` for local files or repeat `--url` for public URLs.
   Do not mix `--image` and `--url` in the same request.
 - Standard generation size: `auto`, `256x256`, `512x512`, `1024x1024`, `1280x720`,
@@ -165,8 +168,11 @@ reference image; VIP text-to-image does not fall back. Disable edit fallback wit
   API request. Live probes against aifast showed `quality` can make max generation disconnect even
   when the same size succeeds without it. For edit/Atlas fallback, `auto`, `low`, `medium`, or
   `high` are supported. XApex sends `quality` for both generation and edits; its default is `low`.
-- XApex async: add `--async` with `--profile xapex`. The script submits to the XApex `/async`
-  endpoint and polls `/v1/images/tasks/{task_id}` with the same XApex key until completion.
+- XApex async: enabled by default through `XAPEX_ASYNC_DEFAULT=true`. The script submits to the
+  XApex `/async` endpoint and polls `/v1/images/tasks/{task_id}` with the same key. Use `--sync`
+  only for diagnosis; `--async` remains an explicit override.
+- Fallback: `auto` generation uses `XApex -> aifast`; `auto` editing uses
+  `XApex -> AtlasCloud -> aifast`. Set `GPT_IMAGE_DEFAULT_FALLBACK=false` to disable it.
 - Timeout: leave `OPENAI_IMAGE_TIMEOUT_MS=0` so long high-resolution jobs can finish.
 - Retries: `OPENAI_IMAGE_MAX_RETRIES` also covers generated-image URL downloads and remote
   reference downloads; 5xx/429/network failures retry, ordinary 4xx failures do not.
@@ -188,8 +194,8 @@ cp .env.example .gateway.env          # then fill OPENAI_API_KEY
 2. Put gateway settings in an auto-loaded file: current-directory `.env`, current-directory
    `.gateway.env`, user-level `~/.gateway.env`, or the skill root `.env` / `.gateway.env`.
    Earlier sources win; process environment variables always win over files.
-3. `OPENAI_API_KEY` is required for standard/VIP. Add `ATLASCLOUD_API_KEY` only for edit
-   fallback or forced `--profile atlas`. Add `XAPEX_API_KEY` only for `--profile xapex`; it must
-   be an XApex token in the `图片` group.
+3. `XAPEX_API_KEY` is required for the default route and must be an XApex `图片` group token.
+   Add `ATLASCLOUD_API_KEY` for the first edit fallback and `OPENAI_API_KEY` for the final aifast
+   fallback or forced standard/VIP profiles.
 4. Keep `OPENAI_IMAGE_TIMEOUT_MS=0` unless the caller wants a local abort limit.
 5. Confirm `check-config.js` shows `ready: true`, `hasApiKey: true`, and `timeoutMs: none`.

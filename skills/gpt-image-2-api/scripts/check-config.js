@@ -7,6 +7,7 @@ import {
   DEFAULT_STANDARD_SIZE,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_XAPEX_MODEL,
+  DEFAULT_XAPEX_ASYNC,
   DEFAULT_XAPEX_POLL_INTERVAL_MS,
   DEFAULT_XAPEX_POLL_TIMEOUT_MS,
   DEFAULT_XAPEX_QUALITY,
@@ -42,7 +43,7 @@ const result = {
       process.env.GPT_IMAGE_STANDARD_SIZE ||
       DEFAULT_STANDARD_SIZE,
     quality: null,
-    note: "standard generation uses documented 1K create sizes; max generation uses aifast VIP/max presets",
+    note: "auto uses XApex async; these standard/max settings apply to aifast fallback or forced profiles",
   },
   vipGeneration: {
     model: VIP_MODEL,
@@ -62,6 +63,14 @@ const result = {
     model: process.env.GPT_IMAGE_XAPEX_MODEL || DEFAULT_XAPEX_MODEL,
     size: process.env.GPT_IMAGE_XAPEX_SIZE || DEFAULT_XAPEX_SIZE,
     quality: process.env.GPT_IMAGE_XAPEX_QUALITY || DEFAULT_XAPEX_QUALITY,
+    asyncDefault: !["0", "false", "off", "no", "sync"].includes(
+      String(process.env.XAPEX_ASYNC_DEFAULT ?? DEFAULT_XAPEX_ASYNC).toLowerCase(),
+    ),
+  },
+  fallbackOrder: {
+    generate: ["xapex", "aifast"],
+    edit: ["xapex", "atlascloud", "aifast"],
+    enabled: (process.env.GPT_IMAGE_DEFAULT_FALLBACK || "true").toLowerCase(),
   },
   vip: {
     model: VIP_MODEL,
@@ -113,6 +122,9 @@ else {
   console.log(`vipGeneration  : ${result.vipGeneration.model} / ${result.vipGeneration.size} / quality omitted`);
   console.log(`standard       : ${result.standard.model} / ${result.standard.size}`);
   console.log(`xapex          : ${result.xapex.model} / ${result.xapex.size} / ${result.xapex.quality}`);
+  console.log(`xapexAsync    : ${result.xapex.asyncDefault}`);
+  console.log(`generateRoute : ${result.fallbackOrder.generate.join(" -> ")}`);
+  console.log(`editRoute     : ${result.fallbackOrder.edit.join(" -> ")}`);
   console.log(`vip            : ${result.vip.model} / ${result.vip.size} / ${result.vip.quality}`);
   console.log(
     `atlasFallback  : ${result.atlasFallback.model} / ${result.atlasFallback.size} / ${result.atlasFallback.quality} / ${result.atlasFallback.enabled}`,

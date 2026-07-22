@@ -7,7 +7,7 @@
 | Standard | aifast.site | `gpt-image-2` | Generation and ordinary single-reference edits |
 | VIP | aifast.site | `gpt-image-2-max` | Primary max-model, multi-reference, and precision-sensitive route |
 | Atlas fallback | AtlasCloud | `openai/gpt-image-2/edit` | Backup for VIP edit failures and explicit `--profile atlas` |
-| XApex | cn.xapex.cc | `gpt-image-2` by default | Independent sync/async generation and edits |
+| XApex | cn.xapex.cc | `gpt-image-2` by default | Default asynchronous generation and edits |
 
 `--profile hd` maps to `vip` for compatibility with the previous AtlasCloud-only version.
 
@@ -22,8 +22,9 @@
 - Quality: `low`, `medium`, `high`, or `auto`; sent for generation and edits
 - Count: `n=1..9`; multi-image requests are billed approximately per image
 
-The XApex profile is intentionally independent: it never reads `OPENAI_API_KEY` or
-`OPENAI_BASE_URL`, never auto-promotes to `gpt-image-2-max`, and never falls back to AtlasCloud.
+The forced XApex profile is independent and never mixes credentials. In default `auto` routing,
+XApex is primary; failed edits try AtlasCloud then aifast, while failed generations skip the
+edit-only AtlasCloud model and try aifast.
 Use `XAPEX_BASE_URL`, `GPT_IMAGE_XAPEX_MODEL`, `GPT_IMAGE_XAPEX_SIZE`,
 `GPT_IMAGE_XAPEX_QUALITY`, `XAPEX_IMAGE_TIMEOUT_MS`, `XAPEX_IMAGE_MAX_RETRIES`,
 `XAPEX_POLL_INTERVAL_MS`, and `XAPEX_POLL_TIMEOUT_MS`.
@@ -151,7 +152,10 @@ When VIP falls back to AtlasCloud, unsupported VIP sizes are mapped conservative
 - HTTP 400/401 from VIP do not fall back, because they usually mean invalid parameters, policy block,
   or invalid credentials.
 - VIP generation does not fall back because AtlasCloud uses an edit-only model.
-- Set `GPT_IMAGE_ATLAS_FALLBACK=false` to disable automatic fallback.
+- Default generation order: XApex async -> aifast.
+- Default edit order: XApex async -> AtlasCloud -> aifast.
+- Set `GPT_IMAGE_DEFAULT_FALLBACK=false` to disable the default chain.
+- Set `GPT_IMAGE_ATLAS_FALLBACK=false` to disable the legacy aifast VIP-to-Atlas edit fallback.
 
 ## Timeout Behavior
 
@@ -192,7 +196,8 @@ Agent quick configuration:
 ```bash
 cd path/to/gpt-image-2-api
 cp .env.example .gateway.env
-# Fill OPENAI_API_KEY. Fill ATLASCLOUD_API_KEY only for Atlas fallback.
+# Fill XAPEX_API_KEY for the default route, ATLASCLOUD_API_KEY for edit fallback,
+# and OPENAI_API_KEY for the final aifast fallback.
 node scripts/check-config.js
 node scripts/generate.js --prompt "smoke test image" --dry-run --json
 ```
@@ -200,9 +205,11 @@ node scripts/generate.js --prompt "smoke test image" --dry-run --json
 Expected `check-config.js` signals:
 
 - `ready: true`
+- `hasXapexApiKey: true` for the default route
 - `hasApiKey: true` for standard/VIP
 - `hasAtlasApiKey: true` only when Atlas fallback is configured
 - `defaultProfile: auto`
+- `xapex.asyncDefault: true`
 - `timeoutMs: none` when `OPENAI_IMAGE_TIMEOUT_MS=0`
 
 ```dotenv
@@ -215,6 +222,8 @@ ATLASCLOUD_POLL_INTERVAL_MS=2000
 ATLASCLOUD_POLL_TIMEOUT_MS=300000
 
 GPT_IMAGE_PROFILE=auto
+XAPEX_ASYNC_DEFAULT=true
+GPT_IMAGE_DEFAULT_FALLBACK=true
 GPT_IMAGE_GENERATION_SIZE=1024x1024
 GPT_IMAGE_STANDARD_SIZE=1024x1024
 GPT_IMAGE_VIP_GENERATION_SIZE=2048x2048

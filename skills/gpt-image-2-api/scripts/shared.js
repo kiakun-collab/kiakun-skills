@@ -27,6 +27,7 @@ export const DEFAULT_XAPEX_SIZE = "1024x1024";
 export const DEFAULT_XAPEX_QUALITY = "low";
 export const DEFAULT_XAPEX_POLL_INTERVAL_MS = 3_000;
 export const DEFAULT_XAPEX_POLL_TIMEOUT_MS = 600_000;
+export const DEFAULT_XAPEX_ASYNC = true;
 export const DEFAULT_HD_SIZE = DEFAULT_VIP_SIZE;
 export const DEFAULT_HD_QUALITY = DEFAULT_VIP_QUALITY;
 export const DEFAULT_TIMEOUT_MS = 0;
@@ -438,7 +439,7 @@ export function resolveImageOptions(
   ) {
     tier = requestedProfile;
   } else {
-    tier = vipReasons.length > 0 ? "vip" : "standard";
+    tier = "xapex";
   }
 
   if (tier === "standard" && referenceCount >= 2) {
@@ -532,7 +533,13 @@ export function resolveImageOptions(
   }
   const routeReasons =
     tier === "xapex"
-      ? [explicitModel ? "explicit-xapex-model" : "explicit-xapex-profile"]
+      ? [
+          explicitModel
+            ? "explicit-xapex-model"
+            : requestedProfile === "auto"
+              ? "default-xapex-primary"
+              : "explicit-xapex-profile",
+        ]
       : tier === "vip"
       ? vipReasons.length > 0
         ? vipReasons
@@ -842,6 +849,29 @@ export function postMultipart(url, form) {
   }));
 }
 
+export function resolveXapexAsync(config = {}, options = {}) {
+  if (options.tier !== "xapex") return false;
+  if (typeof config.async === "boolean") return config.async;
+  const setting = String(process.env.XAPEX_ASYNC_DEFAULT ?? DEFAULT_XAPEX_ASYNC).toLowerCase();
+  return !["0", "false", "off", "no", "sync"].includes(setting);
+}
+
+export function resolveAifastFallbackOptions(config = {}, context = {}) {
+  const referenceCount = context.referenceCount || 0;
+  const requestedSize = config.size || null;
+  const needsVip = Boolean(config.quality) || referenceCount >= 2 ||
+    (requestedSize && VIP_PIXEL_SIZES.has(requestedSize) && !STANDARD_PIXEL_SIZES.has(requestedSize));
+  return resolveImageOptions(
+    {
+      size: config.size,
+      quality: config.quality,
+      n: config.n,
+      profile: needsVip ? "vip" : "standard",
+    },
+    context,
+  );
+}
+
 export function postXapexJson(url, payload) {
   return postWithRetry(
     url,
@@ -1125,18 +1155,33 @@ export function shouldUseAtlasFallback(error) {
   return true;
 }
 
+export function shouldUseDefaultFallback(error) {
+  const setting = String(process.env.GPT_IMAGE_DEFAULT_FALLBACK ?? "true").toLowerCase();
+  if (["0", "false", "off", "never", "none"].includes(setting)) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return !/Image API error \(400\)/.test(message);
+}
+
 export function publicPlan(operation, options, extra = {}) {
   const isAtlas = options.tier === "atlas";
   const isXapex = options.tier === "xapex";
   const isAsync = Boolean(extra.async);
-  const canAtlasFallback = options.tier === "vip" && operation === "edit";
+  const isDefaultChain = options.requestedProfile === "auto" && isXapex;
+  const canAtlasFallback = (options.tier === "vip" || isDefaultChain) && operation === "edit";
   return {
     operation,
     provider: isAtlas ? "atlascloud" : isXapex ? "xapex" : "aifast",
     endpoint: isAtlas
       ? `${buildAtlasBaseUrl()}/generateImage`
       : `${isXapex ? buildXapexBaseUrl() : buildBaseUrl()}/images/${operation === "edit" ? "edits" : "generations"}${isXapex && isAsync ? "/async" : ""}`,
-    fallbackProvider: canAtlasFallback ? "atlascloud" : undefined,
+    fallbackProviders: isDefaultChain
+      ? operation === "edit"
+        ? ["atlascloud", "aifast"]
+        : ["aifast"]
+      : canAtlasFallback
+        ? ["atlascloud"]
+        : undefined,
+    fallbackProvider: canAtlasFallback ? "atlascloud" : isDefaultChain ? "aifast" : undefined,
     fallbackEndpoint: canAtlasFallback ? `${buildAtlasBaseUrl()}/generateImage` : undefined,
     requestedProfile: options.requestedProfile,
     selectedTier: options.tier,

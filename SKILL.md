@@ -1,7 +1,7 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 成本感知 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计、纯净交付守卫与客户交付物终稿净化。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 异步容错 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计、纯净交付守卫与客户交付物终稿净化。
   当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA、生成/切片/验证/导入 Godot 游戏 UI 资产、审查游戏 UI/玩法互动/引导/失败恢复/挑战链路的玩家体验，要求通用防元信息泄漏的"纯净交付"，或要求把客户业务材料净化为保真、可直接交付的终稿时触发。
 ---
 
@@ -63,7 +63,7 @@ skills/
 ├── deliverable-purifier/     → 客户业务交付物终稿净化：保真、分层、最小必要修改
 ├── folder-to-vector-kb/      → 文件夹文档向量化
 ├── game-ui-asset-pipeline/   → 游戏 UI 资产生成、切片、验证与 Godot 导入
-├── gpt-image-2-api/          → GPT Image 2 成本感知 API 生图与编辑
+├── gpt-image-2-api/          → GPT Image 2 异步容错 API 生图与编辑
 ├── image-ppt-to-editable-pptx/ → 图片型 PPT 可编辑复刻
 ├── player-interaction-design/ → 游戏玩家入口、反馈、失败恢复和证据层级合同
 ├── ppt-rebuild-workflow/     → PPT 重构模式、自动坐标校准、视觉抽取、可编辑边界与分级 QA
@@ -127,7 +127,7 @@ skills/
 
 ### gpt-image-2-api
 - 触发：用户要求通过 `gpt-image-2`、`gpt-image-2-max`、aifast.site、XApex 或 AtlasCloud 兼容接口生成、编辑图片
-- 能力：aifast 标准/VIP 路由 → XApex 独立同步/异步路由 → 多参考图 → 2K/4K → 路由预览 → `check-config.js` 配置检查
+- 能力：XApex 默认异步 → 编辑失败时 AtlasCloud → 最终 aifast → 强制渠道 profile → 多参考图 → 2K/4K → 路由预览 → `check-config.js` 配置检查
 - 配置：复制 skill 后在本地 `.env`、`.gateway.env` 或 `~/.gateway.env` 放置 aifast 的 `OPENAI_API_KEY`
   或 XApex 图片组的 `XAPEX_API_KEY`；两条路由使用独立 Base URL、模型、尺寸、quality 和超时设置；
   需要 AtlasCloud 编辑备用通道时再配置 `ATLASCLOUD_API_KEY`

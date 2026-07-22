@@ -6,7 +6,7 @@ import { editImages } from "./edit.js";
 import { generateImage } from "./generate.js";
 import { loadAmbientEnv, printJson, slugify } from "./shared.js";
 
-const SHARED_KEYS = ["profile", "model", "size", "quality", "n"];
+const SHARED_KEYS = ["profile", "model", "size", "quality", "n", "async"];
 
 function help() {
   console.log(`Run many generate/edit jobs in one command.
@@ -26,6 +26,8 @@ Shared params (promptlist mode, and defaults for manifest tasks):
   --size <preset>       Output preset
   --quality <level>     XApex/VIP/Atlas: auto | low | medium | high
   --n <count>           Images per generate task, XApex 1-9; others 1-10
+  --async               Force XApex asynchronous submission (the default)
+  --sync                Force XApex synchronous submission
 
 Batch control:
   --concurrency <n>     Parallel tasks (default: 2)
@@ -35,7 +37,7 @@ Batch control:
   -h, --help            Show help
 
 Manifest task fields:
-  prompt | promptfile, profile, model, size, quality, n, output,
+  prompt | promptfile, profile, model, size, quality, n, async, output,
   images: [paths], urls: [urls]   (images/urls present => edit task)`);
 }
 
@@ -57,6 +59,8 @@ function parseArgs(argv) {
     if (arg === "-h" || arg === "--help") config.help = true;
     else if (arg === "--dry-run") config.dryRun = true;
     else if (arg === "--json") config.json = true;
+    else if (arg === "--async") config.shared.async = true;
+    else if (arg === "--sync") config.shared.async = false;
     else if (names.has(arg)) {
       const value = argv[++index];
       if (!value) throw new Error(`Missing value for ${arg}`);
@@ -139,6 +143,7 @@ function buildTaskConfig(task, index, config) {
     if (merged[key] !== undefined) taskConfig[key] = String(merged[key]);
   }
   if (!isEdit && merged.n !== undefined) taskConfig.n = String(merged.n);
+  if (typeof merged.async === "boolean") taskConfig.async = merged.async;
 
   let output = merged.output;
   if (!output && config.outputDir) {

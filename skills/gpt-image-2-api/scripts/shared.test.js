@@ -13,6 +13,7 @@ import {
   imageMetadata,
   readPromptInput,
   resolveImageOptions,
+  resolveXapexAsync,
 } from "./shared.js";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -65,7 +66,7 @@ function testEnv(baseUrl) {
     ATLASCLOUD_BASE_URL: `${baseUrl}/api/v1/model`,
     ATLASCLOUD_POLL_INTERVAL_MS: "100",
     ATLASCLOUD_POLL_TIMEOUT_MS: "5000",
-    GPT_IMAGE_PROFILE: "auto",
+    GPT_IMAGE_PROFILE: "standard",
     GPT_IMAGE_STANDARD_SIZE: "1024x1024",
     GPT_IMAGE_VIP_SIZE: "2048x2048",
     GPT_IMAGE_VIP_QUALITY: "high",
@@ -80,22 +81,23 @@ function testEnv(baseUrl) {
   };
 }
 
-test("auto defaults daily generation to standard model", () => {
+test("auto defaults generation to XApex", () => {
   assert.deepEqual(resolveImageOptions(), {
     requestedProfile: "auto",
-    tier: "standard",
+    tier: "xapex",
     model: "gpt-image-2",
     size: "1024x1024",
-    quality: null,
+    quality: "low",
     n: 1,
-    routeReasons: ["cost-saving-default"],
+    routeReasons: ["default-xapex-primary"],
   });
+  assert.equal(resolveXapexAsync({}, resolveImageOptions()), true);
 });
 
-test("rejects image counts above the paid-request safety limit", () => {
+test("default XApex rejects image counts above its documented limit", () => {
   assert.throws(
-    () => resolveImageOptions({ n: 11 }),
-    /n must be an integer between 1 and 10/,
+    () => resolveImageOptions({ n: 10 }),
+    /n must be an integer between 1 and 9/,
   );
 });
 
@@ -128,21 +130,21 @@ test("XApex maps portrait ratios and enforces its documented n limit", () => {
   );
 });
 
-test("auto selects VIP for a quality request", () => {
+test("auto keeps quality requests on XApex", () => {
   const options = resolveImageOptions({ size: "3840x2160", quality: "high" });
-  assert.equal(options.model, "gpt-image-2-max");
-  assert.equal(options.tier, "vip");
-  assert.deepEqual(options.routeReasons, [
-    "quality-control-requested",
-    "2k-or-4k-preset-requested",
-  ]);
+  assert.equal(options.model, "gpt-image-2");
+  assert.equal(options.tier, "xapex");
+  assert.equal(options.size, "1536x1024");
+  assert.equal(options.quality, "high");
+  assert.deepEqual(options.routeReasons, ["default-xapex-primary"]);
 });
 
-test("auto selects VIP for multiple reference images", () => {
+test("auto keeps multiple reference images on XApex", () => {
   const options = resolveImageOptions({}, { referenceCount: 2 });
-  assert.equal(options.model, "gpt-image-2-max");
-  assert.equal(options.size, "2048x2048");
-  assert.deepEqual(options.routeReasons, ["multiple-reference-images"]);
+  assert.equal(options.model, "gpt-image-2");
+  assert.equal(options.tier, "xapex");
+  assert.equal(options.size, "1024x1024");
+  assert.deepEqual(options.routeReasons, ["default-xapex-primary"]);
 });
 
 test("VIP accepts ratio size tokens for max model", () => {
@@ -165,7 +167,7 @@ test("VIP generation maps ratio tokens to max 2K presets and omits quality", () 
 });
 
 test("standard generation maps portrait ratios to documented 1K presets", () => {
-  const options = resolveImageOptions({ size: "9:16" }, { operation: "generate" });
+  const options = resolveImageOptions({ profile: "standard", size: "9:16" }, { operation: "generate" });
   assert.equal(options.model, "gpt-image-2");
   assert.equal(options.tier, "standard");
   assert.equal(options.size, "720x1280");
@@ -293,9 +295,10 @@ test("dry-run explains routing without an API key", async () => {
       },
     );
     const plan = JSON.parse(stdout);
-    assert.equal(plan.endpoint, "https://aifast.site/v1/images/generations");
+    assert.equal(plan.endpoint, "https://cn.xapex.cc/v1/images/generations/async");
     assert.equal(plan.model, "gpt-image-2");
-    assert.deepEqual(plan.routeReasons, ["cost-saving-default"]);
+    assert.equal(plan.async, true);
+    assert.deepEqual(plan.routeReasons, ["default-xapex-primary"]);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -412,6 +415,7 @@ test("XApex generation uses isolated credentials and sends quality", async () =>
           [
             "--profile",
             "xapex",
+            "--sync",
             "--prompt",
             "xapex test image",
             "--quality",
@@ -482,6 +486,59 @@ test("XApex async generation submits once and polls with the same isolated key",
     );
     assert.equal(submitCount, 1);
     assert.equal(pollCount, 1);
+    assert.deepEqual(await readFile(path.join(cwd, "result.png")), PNG);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("default generation falls back from XApex async to aifast", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "default-generate-fallback-"));
+  const requests = [];
+  try {
+    await withGateway(
+      async (request, response) => {
+        requests.push({ url: request.url, authorization: request.headers.authorization });
+        for await (const _chunk of request) {
+          // Drain request body.
+        }
+        if (request.url === "/v1/images/generations/async") {
+          response.writeHead(503, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: { message: "xapex unavailable" } }));
+          return;
+        }
+        assert.equal(request.url, "/v1/images/generations");
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      async (baseUrl) => {
+        const env = { ...testEnv(baseUrl), GPT_IMAGE_PROFILE: "auto" };
+        const { stdout } = await runNode(
+          "generate.js",
+          [
+            "--prompt",
+            "fallback image",
+            "--output",
+            "result.png",
+            "--prompt-output",
+            "prompt.md",
+            "--json",
+          ],
+          cwd,
+          env,
+        );
+        const result = JSON.parse(stdout);
+        assert.equal(result.provider, "xapex");
+        assert.equal(result.usedProvider, "aifast");
+        assert.equal(result.async, true);
+        assert.equal(result.finalEndpoint, `${baseUrl}/v1/images/generations`);
+        assert.equal(result.fallbackAttempts[0].provider, "xapex");
+      },
+    );
+    assert.deepEqual(requests, [
+      { url: "/v1/images/generations/async", authorization: "Bearer xapex-test-key" },
+      { url: "/v1/images/generations", authorization: "Bearer test-key" },
+    ]);
     assert.deepEqual(await readFile(path.join(cwd, "result.png")), PNG);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -807,6 +864,7 @@ test("XApex edit uses isolated credentials and multipart quality", async () => {
           [
             "--profile",
             "xapex",
+            "--sync",
             "--image",
             "one.png",
             "--prompt",
@@ -825,6 +883,71 @@ test("XApex edit uses isolated credentials and multipart quality", async () => {
     assert.equal(authorization, "Bearer xapex-test-key");
     assert.match(multipart, /name="model"\r\n\r\ngpt-image-2/);
     assert.match(multipart, /name="quality"\r\n\r\nlow/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("default edit falls back XApex to AtlasCloud to aifast in order", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "default-edit-fallback-chain-"));
+  const requests = [];
+  try {
+    await writeFile(path.join(cwd, "one.png"), PNG);
+    await withGateway(
+      async (request, response) => {
+        requests.push({ url: request.url, authorization: request.headers.authorization });
+        for await (const _chunk of request) {
+          // Drain request body.
+        }
+        if (request.url === "/v1/images/edits/async") {
+          response.writeHead(503, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: { message: "xapex unavailable" } }));
+          return;
+        }
+        if (request.url === "/api/v1/model/generateImage") {
+          response.writeHead(503, { "content-type": "application/json" });
+          response.end(JSON.stringify({ message: "atlas unavailable" }));
+          return;
+        }
+        assert.equal(request.url, "/v1/images/edits");
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+      },
+      async (baseUrl) => {
+        const env = { ...testEnv(baseUrl), GPT_IMAGE_PROFILE: "auto" };
+        const { stdout } = await runNode(
+          "edit.js",
+          [
+            "--image",
+            "one.png",
+            "--prompt",
+            "fallback edit",
+            "--output",
+            "edited.png",
+            "--prompt-output",
+            "prompt.md",
+            "--json",
+          ],
+          cwd,
+          env,
+        );
+        const result = JSON.parse(stdout);
+        assert.equal(result.provider, "xapex");
+        assert.equal(result.usedProvider, "aifast");
+        assert.equal(result.async, true);
+        assert.deepEqual(result.fallbackAttempts.map((item) => item.provider), [
+          "xapex",
+          "atlascloud",
+        ]);
+        assert.equal(result.finalEndpoint, `${baseUrl}/v1/images/edits`);
+      },
+    );
+    assert.deepEqual(requests, [
+      { url: "/v1/images/edits/async", authorization: "Bearer xapex-test-key" },
+      { url: "/api/v1/model/generateImage", authorization: "Bearer atlas-test-key" },
+      { url: "/v1/images/edits", authorization: "Bearer test-key" },
+    ]);
+    assert.deepEqual(await readFile(path.join(cwd, "edited.png")), PNG);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -903,6 +1026,8 @@ test("multi-URL reference edit downloads in parallel but preserves multipart ord
         runNode(
           "edit.js",
           [
+            "--profile",
+            "vip",
             "--url",
             `${baseUrl}/first.png`,
             "--url",
@@ -946,6 +1071,8 @@ test("multi-reference edit uses VIP first", async () => {
         runNode(
           "edit.js",
           [
+            "--profile",
+            "vip",
             "--image",
             "one.png",
             "--image",
@@ -1020,6 +1147,8 @@ test("VIP edit falls back to AtlasCloud after upstream failure", async () => {
         runNode(
           "edit.js",
           [
+            "--profile",
+            "vip",
             "--image",
             "one.png",
             "--image",
