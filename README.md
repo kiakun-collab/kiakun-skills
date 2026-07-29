@@ -124,6 +124,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **game-ui-asset-pipeline** | `skills/game-ui-asset-pipeline/` | 游戏 UI 资产流水线 | 生成、清理、切片、验证并导入 Godot 游戏 UI 图标、HUD glyph、九宫格面板和按钮皮肤 |
 | **player-interaction-design** | `skills/player-interaction-design/` | 游戏玩家互动设计 | 先写玩家入口、主操作、可见反馈、失败恢复和证据层级合同 |
 | **gpt-image-2-api** | `skills/gpt-image-2-api/` | GPT Image 2 API | XApex 默认异步，AtlasCloud 编辑备用，aifast 最终备用 |
+| **pitch-visual-prompting** | `skills/pitch-visual-prompting/` | 比稿视觉提示词 | 将多品牌比稿 brief 和参考资料转化为可执行、可迭代的图像生成提示词 |
 
 ---
 
@@ -168,11 +169,13 @@ cp -r skills/html-to-pptx ~/.claude/skills/
 cp -r skills/game-ui-asset-pipeline ~/.claude/skills/
 cp -r skills/player-interaction-design ~/.claude/skills/
 cp -r skills/gpt-image-2-api ~/.claude/skills/
+cp -r skills/pitch-visual-prompting ~/.claude/skills/
 
 # Codex 示例
 cp -r skills/deliverable-purifier ~/.codex/skills/
 cp -r skills/player-interaction-design ~/.codex/skills/
 cp -r skills/gpt-image-2-api ~/.codex/skills/
+cp -r skills/pitch-visual-prompting ~/.codex/skills/
 
 # OpenClaw 示例
 cp -r skills/xiaohongshu <openclaw-project>/skills/
