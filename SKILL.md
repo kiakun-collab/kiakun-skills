@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 异步容错 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计、纯净交付守卫与客户交付物终稿净化。
-  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA、生成/切片/验证/导入 Godot 游戏 UI 资产、审查游戏 UI/玩法互动/引导/失败恢复/挑战链路的玩家体验，要求通用防元信息泄漏的"纯净交付"，或要求把客户业务材料净化为保真、可直接交付的终稿时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 异步容错 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计、纯净交付守卫、客户交付物终稿净化与比稿视觉提示词。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA、生成/切片/验证/导入 Godot 游戏 UI 资产、审查游戏 UI/玩法互动/引导/失败恢复/挑战链路的玩家体验，要求通用防元信息泄漏的"纯净交付"，要求把客户业务材料净化为保真、可直接交付的终稿，或需要为比稿/活动/产品/社交内容构建图像生成提示词时触发。
 ---
 
 # Kiakun Skills 集合
@@ -52,6 +52,9 @@ description: |
 13. **客户交付物终稿净化**（"客户可直接用 / 最终版 / 汇报成稿 / 净化 PPT 文案 / 保留数据引用和指定占位 / presentation-ready / client-ready"）
    → 执行 `deliverable-purifier` 技能。若用户要的是给其他模型复用的防泄漏提示词，仍执行 `clean-deliverable`。
 
+14. **比稿视觉提示词**（"比稿视觉 / 图像生成提示词 / campaign visual prompt / 激活场景 / 产品 mockup / UI 或社交样稿 / 参考图怎么用"）
+   → 执行 `pitch-visual-prompting` 技能。
+
 ## 子技能路径
 
 ```
@@ -66,6 +69,7 @@ skills/
 ├── gpt-image-2-api/          → GPT Image 2 异步容错 API 生图与编辑
 ├── image-ppt-to-editable-pptx/ → 图片型 PPT 可编辑复刻
 ├── player-interaction-design/ → 游戏玩家入口、反馈、失败恢复和证据层级合同
+├── pitch-visual-prompting/   → 多品牌比稿图像生成提示词、参考图角色与视觉 QA
 ├── ppt-rebuild-workflow/     → PPT 重构模式、自动坐标校准、视觉抽取、可编辑边界与分级 QA
 └── xiaohongshu/              → 小红书自动化（含 xhs-auth, xhs-explore, xhs-interact, xhs-publish, xhs-content-ops 等）
 ```
@@ -137,6 +141,11 @@ skills/
 - 触发：用户要求处理游戏 UI、玩法互动、引导、失败恢复、挑战链路、任务包体验验收或玩家互动合同
 - 能力：完整/短合同判断 → 玩家入口、第一眼信息、主操作、可见反馈、阻断原因和恢复路径前置 → 证据层级结构化 → `not_proven` 收口 → 合同模板与校验脚本
 - 入口文件：`skills/player-interaction-design/SKILL.md`
+
+### pitch-visual-prompting
+- 触发：用户要求为比稿、活动、产品、界面或社交内容构建、优化或审查图像生成提示词，且需要处理视觉目标、参考图角色、可见文字与视觉 QA
+- 能力：明确交付模式 → 为每份参考图分配角色与 load/inspect-only/extract-only 路由 → 以可见证据落实比稿主张 → 拼装可执行 prompt → 文本、保真度、层级、现实感与不必要新增内容检查
+- 入口文件：`skills/pitch-visual-prompting/SKILL.md`
 
 ### xiaohongshu
 - 触发：用户要求操作小红书

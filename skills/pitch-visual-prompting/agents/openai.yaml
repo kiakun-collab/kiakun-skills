@@ -1,0 +1,4 @@
+interface:
+  display_name: "比稿视觉提示词"
+  short_description: "为多品牌比稿构建可执行、可复用、可迭代的图像生成提示词"
+  default_prompt: "Use $pitch-visual-prompting to turn this campaign brief and its references into an executable image-generation prompt."
