@@ -8,6 +8,10 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 
 ## 最新更新
 
+### 2026-09-07：新增 `amap-web-service` 高德地图 Web 服务 Skill
+
+新增与具体业务、城市和点位方案解耦的高德地图服务能力，支持 POI 关键词搜索、逆地理编码、步行与公交/地铁综合路线、静态地图下载，并提供 GCJ-02 坐标校验、距离计算和地图像素投影工具。Skill 通过环境变量安全加载 Web 服务 Key，统一处理 HTTP 错误及高德 `infocode`，CLI 输出结构化 JSON；真实 Key 不进入仓库。
+
 ### 2026-07-15：新增 `deliverable-purifier` 客户交付物终稿净化 Skill
 
 面向 PPT 文案、方案、报告、品牌策略和业务模板的最终编辑层：清除提示词痕迹、内部创作说明与意外占位，同时锁定事实、数据、引用、声明、专有名词和用户指定字段。通过受众正文/授权备注/内部过程三层边界、`KEEP / REWRITE / REMOVE / RESOLVE` 四类处置及 `FINAL / REVIEW / COMPARE` 三种输出模式，避免清洗时误删、误改或编造。与 `clean-deliverable` 分工：后者负责通用防元信息泄漏和跨模型约束提示词，本 skill 专注客户业务材料的保真终稿。
@@ -114,6 +118,7 @@ Kiakun 的 AI Agent Skills 集合仓库，兼容 OpenClaw、Claude Code 及所�
 | **xiaohongshu** | `skills/xiaohongshu/` | 小红书自动化 | 认证登录、内容发布、搜索发现、社交互动、复合运营分析 |
 | **bilibili-video-summary** | `skills/bilibili-video-summary/` | B站视频决策助手 | 脚本预消化为 ≤15KB 信号 JSON；字幕正文/弹幕聚合(词频·密度·高能峰值)/热评楼中楼/价值信号/Whisper 兜底，LLM 出"值不值得看"决策报告 |
 | **folder-to-vector-kb** | `skills/folder-to-vector-kb/` | 文件夹向量化 | 批量文档清洗、语义 chunk 切分、元数据补全、输出 `knowledge_base.jsonl` |
+| **amap-web-service** | `skills/amap-web-service/` | 高德地图 Web 服务 | POI 搜索、逆地理编码、步行/公交地铁路线、静态地图与 GCJ-02 工具 |
 | **chinese-first-dialog** | `skills/chinese-first-dialog/` | 中文优先对话 | 默认简体中文回复，保留代码、命令、路径、配置键、API 标识符和原始错误文本 |
 | **clean-deliverable** | `skills/clean-deliverable/` | 纯净交付守卫 | 防占位符/回声输入/思考残留泄漏进交付物；约束提示词、审查清洗、交付前自检三种用法 |
 | **deliverable-purifier** | `skills/deliverable-purifier/` | 客户交付物终稿净化 | 客户业务材料的保真清洗、内容分层、四类处置与三种输出模式 |
@@ -170,12 +175,14 @@ cp -r skills/game-ui-asset-pipeline ~/.claude/skills/
 cp -r skills/player-interaction-design ~/.claude/skills/
 cp -r skills/gpt-image-2-api ~/.claude/skills/
 cp -r skills/pitch-visual-prompting ~/.claude/skills/
+cp -r skills/amap-web-service ~/.claude/skills/
 
 # Codex 示例
 cp -r skills/deliverable-purifier ~/.codex/skills/
 cp -r skills/player-interaction-design ~/.codex/skills/
 cp -r skills/gpt-image-2-api ~/.codex/skills/
 cp -r skills/pitch-visual-prompting ~/.codex/skills/
+cp -r skills/amap-web-service ~/.codex/skills/
 
 # OpenClaw 示例
 cp -r skills/xiaohongshu <openclaw-project>/skills/
@@ -228,6 +235,12 @@ kiakun-skills/
     │   └── xhs-research-bridge/ # 研究桥接
     ├── bilibili-video-summary/
     │   └── SKILL.md           # B站视频总结
+    ├── amap-web-service/
+    │   ├── SKILL.md           # 高德地图 Web 服务
+    │   ├── agents/
+    │   ├── references/
+    │   ├── scripts/
+    │   └── tests/
     ├── chinese-first-dialog/
     │   ├── SKILL.md           # 中文优先对话
     │   └── agents/

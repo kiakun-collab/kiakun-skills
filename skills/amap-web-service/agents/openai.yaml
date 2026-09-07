@@ -1,0 +1,4 @@
+interface:
+  display_name: "AMap Web Service"
+  short_description: "Search POIs, geocode, route, and download AMap static maps"
+  default_prompt: "Use $amap-web-service to query AMap Web Service safely and return structured results."

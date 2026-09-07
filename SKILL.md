@@ -1,8 +1,8 @@
 ---
 name: kiakun-skills
 description: |
-  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 异步容错 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计、纯净交付守卫、客户交付物终稿净化与比稿视觉提示词。
-  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA、生成/切片/验证/导入 Godot 游戏 UI 资产、审查游戏 UI/玩法互动/引导/失败恢复/挑战链路的玩家体验，要求通用防元信息泄漏的"纯净交付"，要求把客户业务材料净化为保真、可直接交付的终稿，或需要为比稿/活动/产品/社交内容构建图像生成提示词时触发。
+  Kiakun 的 AI Agent Skills 集合。包含小红书自动化、B站视频总结、文件夹向量化知识库、高德地图 Web 服务、中文优先对话、Claude Code 第三方 API 配置、GPT Image 2 异步容错 API 生图、图片型 PPT 可编辑复刻、PPT 重构工作流、游戏 UI 资产流水线、玩家互动设计、纯净交付守卫、客户交付物终稿净化与比稿视觉提示词。
+  当用户要求操作小红书、总结 B站视频、整理文件夹为知识库、查询高德 POI/逆地理编码/路线/静态地图、默认使用简体中文回复、通过 CC Switch 配置 Claude Code API、通过 GPT Image API 生成或编辑图片、将图片/截图型 PPT 复刻为可编辑 PPTX、按参考图或用户修改稿执行分模式 PPT 重构与 QA、生成/切片/验证/导入 Godot 游戏 UI 资产、审查游戏 UI/玩法互动/引导/失败恢复/挑战链路的玩家体验，要求通用防元信息泄漏的"纯净交付"，要求把客户业务材料净化为保真、可直接交付的终稿，或需要为比稿/活动/产品/社交内容构建图像生成提示词时触发。
 ---
 
 # Kiakun Skills 集合
@@ -55,11 +55,15 @@ description: |
 14. **比稿视觉提示词**（"比稿视觉 / 图像生成提示词 / campaign visual prompt / 激活场景 / 产品 mockup / UI 或社交样稿 / 参考图怎么用"）
    → 执行 `pitch-visual-prompting` 技能。
 
+15. **高德地图 Web 服务**（"高德地图 / AMap / POI 搜索 / 逆地理编码 / 步行路线 / 公交地铁路线 / 静态地图"）
+   → 执行 `amap-web-service` 技能。浏览器端高德 JS SDK 集成不走此技能。
+
 ## 子技能路径
 
 ```
 skills/
 ├── bilibili-video-summary/   → B站视频解析与总结
+├── amap-web-service/         → 高德 POI、逆地理编码、路线规划与静态地图
 ├── chinese-first-dialog/     → 默认简体中文对话并保留代码、命令、路径和标识符原文
 ├── cc-switch-claude-provider/ → CC Switch Claude Code 第三方 API 配置
 ├── clean-deliverable/        → 纯净交付守卫：防占位符/回声输入/思考残留泄漏进交付物
@@ -83,6 +87,11 @@ skills/
 - 所有 CLI 调用返回 JSON 格式时，应结构化呈现关键信息给用户。
 
 ## 各技能快速入口
+
+### amap-web-service
+- 触发：用户需要查询高德 POI、逆地理编码、步行或公交地铁路线，或下载高德静态地图
+- 能力：Web Service Key 安全加载 → GCJ-02 坐标校验 → 高德 API 调用与错误处理 → 结构化 JSON 或地图图片
+- 入口文件：`skills/amap-web-service/SKILL.md`
 
 ### bilibili-video-summary
 - 触发：用户发送 B站视频链接
