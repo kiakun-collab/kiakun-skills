@@ -130,7 +130,7 @@ skills/
 
 ### ppt-rebuild-workflow
 - 触发：用户提供幻灯片截图、图片型 PPTX、AI 参考页或用户修改稿，要求选择适当重构模式并交付可编辑 PPTX
-- 能力：Mode A-E 路由 → 语义验收 → 自动坐标校准 → 视觉抽取 → 字体校准 → 富文本 runs → 资产与可编辑边界 → 复杂视觉过渡策略 → 结构审计 → 文字可读性与参考图还原度双门禁
+- 能力：用户定稿优先 → 构建前锁定 Mode A-E 路由 → 一次抽取与按风险校准 → 真实 alpha 与可编辑边界 → 阶段日志及最终文件证据 → 文字可读性与参考图还原度双门禁
 - 入口文件：`skills/ppt-rebuild-workflow/SKILL.md`
 
 ### game-ui-asset-pipeline

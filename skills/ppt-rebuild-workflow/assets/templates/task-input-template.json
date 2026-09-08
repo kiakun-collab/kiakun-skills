@@ -7,13 +7,25 @@
   "acceptanceRenderer": "",
   "sourcePptx": "",
   "sourceCopy": [],
+  "userCopy": [],
+  "deliveryProfile": "standard",
+  "runtime": {
+    "nodeExecutable": "",
+    "pythonExecutable": "",
+    "nodeModules": "",
+    "presentationSkillDir": ""
+  },
+  "assetPolicy": {
+    "alphaFailurePolicy": "manual-handoff"
+  },
   "referenceImages": [],
   "slideOrder": [],
   "editableBoundary": {
     "mayBakeIntoImage": [],
     "mustRemainEditable": [],
     "mustRemainIndependentImages": [],
-    "autoFallbackAllowed": true
+    "mustHaveAlpha": [],
+    "autoFallbackAllowed": false
   },
   "assetStrategy": "",
   "visualExtraction": {
@@ -32,9 +44,25 @@
   "overwritePolicy": "forbid",
   "permissionPolicy": "follow-current-thread-policy",
   "notes": [
-    "对话字段使用 snake_case，落盘字段使用 camelCase，完整映射（14 个对话字段全部覆盖）：task_mode -> taskMode、autonomy_profile -> autonomyProfile、target_font -> targetFont、font_candidate_set -> fontCandidateSet、acceptance_renderer -> acceptanceRenderer、source_pptx -> sourcePptx、source_copy -> sourceCopy、reference_images -> referenceImages、slide_order -> slideOrder、editable_boundary -> editableBoundary、asset_strategy -> assetStrategy、visual_extraction -> visualExtraction、qa_level -> qaLevel、output_directory -> output.directory、output_name -> output.fileName、overwrite_policy -> overwritePolicy、permission_policy -> permissionPolicy。",
-    "targetFont 为空时必须在 acceptanceRenderer 中比较 fontCandidateSet，不阻塞等待人工选字。",
+    "userCopy 每项含 id、page、text、source，可选 pptxShapeName。用户明确提供的定稿优先，截图只读样式和几何；未提供部分仍从来源抽取。",
+    "mustRemainIndependentImages / mustHaveAlpha 使用资产 ID；缺少干净素材不改变路由。用户要求全自动抠图时 alphaFailurePolicy=required。",
+    "deliveryProfile=standard 只精简交付记录，不改变质量；benchmark 用于完整测试报告。runtime 从实际依赖工具和已安装 Presentations 获取。",
+    "对话字段使用 snake_case，落盘字段使用 camelCase：task_mode -> taskMode、reference_images -> referenceImages、slide_order -> slideOrder、qa_level -> qaLevel、output_name -> output.fileName、source_copy -> sourceCopy。",
     "temporaryCalibrationDir 只能保存临时校准图或校准 PPT，不得作为最终 deck 的页面来源。",
-    "overwritePolicy 默认 forbid；只有用户明确要求覆盖、已有备份或任务属于受控增量修改时，才可改为 allow，并在报告中记录原因。"
-  ]
+    "overwritePolicy 默认 forbid；只有用户明确要求覆盖、已有备份或任务属于受控增量修改时，才可改为 allow，并在报告中记录原因。",
+    "execution_profile -> executionProfile；默认 balanced。targetFont 未指定时选本地支持字符集的字体，只有风险样式才比较候选。",
+    "routingIntent 由用户原话归纳，resolve_rebuild_route.py 输出写入 routingDecision，并同步 taskMode/qaLevel。",
+    "calibrationPolicy 在 fast/balanced 为 targeted，在 strict 为 full；不能从 qaLevel 推断成本。"
+  ],
+  "executionProfile": "balanced",
+  "calibrationPolicy": "targeted",
+  "routingIntent": {
+    "operation": "rebuild",
+    "deliverable": "editable",
+    "redesignRequested": false,
+    "referenceOnly": false,
+    "userSelectsDesign": false,
+    "intentEvidence": []
+  },
+  "routingDecision": {}
 }

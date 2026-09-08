@@ -1,117 +1,53 @@
 # QA Standards
 
-## Level 1 快览 QA
+QA 等级定义交付边界，executionProfile 定义校准成本。fast / balanced 不降低文案、可读性或还原度门槛；strict 增加完整计算证据。旧报告未声明 profile 时继续严格验证，不能因升级静默放宽。
 
-用于 Mode A。
+## Level 1 快览
 
-- `slideCount` 正确。
-- `mediaCount` 与页数匹配或可解释。
-- `emptyMediaCount = 0`。
-- 页序正确。
-- 输出 contact sheet。
+Mode A：页数与页序正确、媒体无空文件、PPTX 可读，检查 contact sheet。明确每页整图、不承诺编辑文字。无需 B/C 抽取、字体探针、坐标校准。
 
-## Level 2 半可编辑 QA
+## Level 2 可编辑重构
 
-用于 Mode B。Level 1 全部通过，并完成以下自动审计和视觉门禁。
+- task-input、逐页 visual-extraction、layout-spec 保留实际来源；可共享 style-spec。
+- 用户定稿覆盖的文字免于截图识别复核，以导出原生文字对照定稿；未覆盖部分按 text-recovery 核对。textRecovery.unresolvedItems 未清空时内容未通过，数字、专名和否定词不能猜。
+- audit_pptx_structure.py 与 audit_pptx_text_frames.py 运行成功，保留报告。检查实际 PPTX、页数、媒体、字体槽位及继承、可编辑文字与约定结构。
+- 大图覆盖风险必须结合资产身份复核。wholeReferenceImageEmbedded 有自动风险证据与对照结论，不能仅凭覆盖率判断。
+- 未解析字体、对象来源、几何变换、必须编辑冲突逐项闭环。文本框相交先辨识实际字形与设计意图，不机械拆散连续标题；有意的 shape/image 叠放不纳入通用碰撞门禁。
+- 保留 `textFrameIntersections` 原始计数。确实无可见文字重叠时，用 `geometryExceptions` 按 page、intersectionIndex（从 0 起）逐项记录 reviewer、reason、renderObservation、status=NO_VISIBLE_TEXT_OVERLAP；引用绑定当前 PPTX 的实际 text-frame-audit。漏项、重复项、过期报告均不能通过，不手工清零。
+- make_reference_render_comparison.py 或等价配对产物校验页码、缺失、重复和多余页，保留 pairing manifest。
+- 一次整页优先的最终 PNG 对照分别记录文字可读性、版式、构图、层级、色彩和主要素材。不得把多轮裁剪作为默认审计流程。
+- visionAuditStatus = PASS、visualOverlapCount = 0、visualFidelityStatus = PASS、majorFidelityDeviationCount = 0、visibleAssetSeamCount = 0。两项视觉结论可在同一次复核、同一个报告中，不要求重复看两遍。
+- 不要求像素级完全一致；minor 逐页记录，不强制为细微差异继续返修。普通叠放虽不碰文字，明显偏离参考图仍可能构成视觉还原度偏差。
+- autoFidelityBlocked = false、未解决必须编辑冲突为 0 才能通过。修复后必须用新渲染验证，只有共享组件改变时扩大到相关页。
 
-### Level 2 必须自动审计
+### 校准证据
 
-- 按 [text-recovery.md](text-recovery.md) 核对准确文案；AI 图像中的错字、乱码和伪字采用有来源的语义重建，不得通过裁剪或放大恢复。
-- `textRecovery.unresolvedItems` 必须为空；否则设置 `needsHumanReview = true`，未经确认不能把内容准确性标记为通过。
-- 运行 `scripts/audit_pptx_structure.py`。
-- 分别检查 `latinFonts`、`eastAsianFonts`、`complexScriptFonts`、`symbolFonts` 和 `themeFonts`。
-- `unresolvedInheritedFonts` 必须为空，或逐项给出人工验证和字体来源；不能把未解析继承当成通过。
-- 文本运行存在，不能全部烘焙进图片。
-- `fullSlideImageRiskPages` 为空；若非空，必须证明大图不是整页参考图或判定失败。
-- `wholeReferenceImageEmbedded` 必须有自动风险证据及人工对照结论，不能写无来源的 `false`。
-- 文本 `p:sp`、普通 shape、`p:pic` 分类型统计，`unknownRoleNames` 为 0 或逐项解释。
-- 运行 `scripts/audit_pptx_text_frames.py`。
-- `textFrameIntersections = 0`。
-- 细长形状与文本框相交候选为 `0`，或逐项证明属于安全布局。
-- `unresolvedTextFrameCount = 0`。
-- `unresolvedGroupTransformCount = 0`；例外必须进入 `geometryCoverageRisks` 并人工复核。
-- 普通分隔页每页长正文文本框候选默认恰好为 `1`；例外必须说明。
-- 运行 `scripts/make_reference_render_comparison.py` 或等价流程；页码映射、缺失页、重复页和多余页检查通过，并保留 pairing JSON。
-- 任务输入文件和每页 `layout-spec` 已落盘；关键渐隐、光晕和图片边缘已记录在 `visualTransitions`。
-- 每页 `visual-extraction`、测量标注图和 `typography-calibration` 已落盘；每个最终可编辑对象有 `sourceExtractionId`、`coordinateCalibrationId`、原 PPTX 对象或明确来源说明。
-- 每页 `coordinateTransform`、3-12 个稳定自动宏观锚点、临时校准层和脚本生成的 `coordinateCalibration.status = PASS` 已落盘；少于 3 个时必须为 `INSUFFICIENT`，最终 deck 不包含临时整页参考图。
-- 低置信文字、形状、图片和间距对象已进入风险列表并闭环；复杂低置信对象自动选择 `baked-asset` 或 Mode B fallback，不得把未解释对象静默写入最终 PPTX。
-- 标题、正文、标签和页码等主要文字样式已在 `acceptanceRenderer` 中完成 2-4 个候选渲染比较，并记录 bbox、baseline、wrap 和 overflow。
-- 同一语义行、口号或标题中的多色/多字号强调已优先实现为单文本框富文本 runs；如拆成多个文本框，必须有独立布局原因，并记录拆分后的视觉间距证据。
-- 富文本 runs 的颜色、字号、字重和描边在最终渲染 PNG 中保持区分；不能因合并文本框而退化为统一样式。
-- `assets/templates/level-2-delivery-checklist.md` 已逐项完成。
-- 运行 `scripts/validate_rebuild_evidence.py`；退出码必须为 `0`，不得用手填 PASS 替代计算证据。
+fast / balanced：每页 renderVerificationFile 记录真实观察、坐标与文字验证状态，渲染路径匹配 pairing manifest；outputPptxSha256 和各页 renderSha256 绑定实际文件，哈希仅防旧证据误用，不证明视觉质量。无专项需要时 coordinateCalibration.status = NOT_REQUIRED 并写理由。triggeredChecks 中有坐标/字体触发项则提供相应计算脚本 PASS 产物，不能只写“已检查”。
 
-### Level 2 必须视觉门禁
+strict：逐页 measurements 与标注图，coordinate-calibration 脚本 PASS，主要样式 typography scoring PASS；少于 3 个稳定锚点 INCONCLUSIVE，不能虚构。临时校准层仅在诊断需要时创建。
 
-视觉 QA 是双门禁：文字可读性和参考图还原度必须分别通过。
+validate_rebuild_evidence.py 检查文件引用、上述校准证据与状态；它不能代替真实看图，也不会自动证明模型填写的观察正确。
 
-- 底图无标题、正文、标签、页码和装饰线残留。
-- contact sheet 已检查，但不能代替逐页全尺寸 PNG。
-- 每页最终 PNG 已做图像识别审计。
-- 视觉检查整页优先；不得把多轮裁剪作为默认审计流程。
-- 整页放大只用于检查文字是否清晰、完整、被遮挡或裁切，不用于从 AI 伪字中恢复准确文案。
-- 渲染 PNG 中的文字没有裁切、越界、破坏性重叠或安全间距不足。
-- 同一句多样式文字在最终 PNG 中保持连续阅读节奏，没有因文本框不重叠规则产生异常空隙。
-- 形状与形状、图片与图片、图片与非文字形状之间的叠放不纳入通用碰撞门禁；只有影响文字可读性或违反明确分层规则时才判定失败。
-- 参考图中有意的 shape/image 覆盖已记录为 `overlapPolicy`、`allowedOverlays` 或 `allowedVisualOverlaps`；不影响文字可读性时不得计入 `visualOverlapCount`。
-- `visionAuditStatus = PASS` 且 `visualOverlapCount = 0`。
-- 按 [visual-fidelity-qa.md](visual-fidelity-qa.md) 逐页检查版式、构图、层级、色彩、字体观感、间距节奏和关键素材。
-- `visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。
-- 分区 `regionMetrics` 中关键对象的 bbox、baseline 和间距偏差必须落入门槛；未达标对象进入自动返修。
-- `autoIterationCount <= 3`、`autoFidelityBlocked = false`、未解决 required editability conflicts = 0。
-- 按 [visual-transition-strategy.md](visual-transition-strategy.md) 检查复杂过渡，`visibleAssetSeamCount = 0`；明显矩形接缝、色带、纹理中断或错误渐变方向按 `major` 处理。
-- 不要求像素级完全一致；所有 `minor` 偏差必须逐页记录，未经解释的明显偏差不能通过。
-- 普通形状或图片叠放即使不影响文字，只要其位置、层级、裁切或构图明显偏离参考图，仍属于还原度失败。
-- 修复页使用新渲染图复审，不得复用旧预览。
-- 连续两轮结论矛盾、同一区域反复 FAIL/PASS 或模型不能稳定判断时，标记 `needsHumanReview = true`，保留证据并请求人工裁决。
+## Level 2 可选增强
 
-几何审计是预检，图像识别审计拥有否决权。`textFrameIntersections = 0` 不能证明文字无视觉重叠，也不能证明页面达到参考图目标。
+风险标注图、精确对齐后差异热力图、独立审计者只在可解决具体疑点时增加。热力图只筛选区域，不独立决定 PASS/FAIL。
 
-### Level 2 可选增强
+## Level 3 完全分层
 
-- 对形状数量偏多的页面补充角色分布图。
-- 当参考图与渲染图尺寸、裁切和对齐完全一致时，可生成绝对差异热力图筛选候选区域；热力图不得单独决定 PASS/FAIL。
+Level 2 全部通过，并验证用户约定范围内的背景、人物、内容图各自独立及可编辑结构。独立对象和合成人物计数按已要求拆分的资产范围检查，未要求拆分的场景内部人物不计为违规。全分层不自动强制 strict；普通图可用 renderVerification 完成坐标和字体验证。
 
-视觉重叠审计按 [visual-overlap-qa.md](visual-overlap-qa.md) 执行。
+level3Gates 逐项记录 automatedEvidence、manualEvidence、status。manualEvidence 是实际视觉复核，不必等用户逐对象确认。包含 wholeReferenceImageEmbedded、combinedBackgroundPersonPictureCount、contentPicturesAreIndependentObjects、visualOverlapCount、visualExtractionComplete、typographyCalibrationComplete、forbiddenOverlayShapesDetected。这里 typographyCalibrationComplete 包括通过的最终渲染验证或按需计算探针，不强制每页候选搜索。例外必须已经在编辑范围内获允许。
 
-## Level 3 高还原 QA
+`assetAuditFile` 必填，覆盖用户指定独立资产及 alpha 资产 ID。验证真实图像通道、可见主体和渲染边缘；独立对象计数、PNG 扩展名或绘制的棋盘格都不能证明透明。允许人工接手时交付 `MANUAL_CUTOUT_REQUIRED`，完整 Level 3 仍未通过。
 
-用于 Mode C。
+## Level 4 增量修改
 
-- Level 2 全部通过。
-- 参考图 vs 渲染图并排图已检查。
-- `visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。
-- `visualOverlapCount = 0`。
-- `wholeReferenceImageEmbedded` 的状态、自动风险证据和人工对照结论证明未嵌入整页参考图。
-- `combinedBackgroundPersonPictureCount = 0`，或 asset-audit 记录不可拆分例外。
-- `contentPicturesAreIndependentObjects = true`。
-- `coordinateCalibration.status = PASS`，临时校准层已验证，最终 deck 未包含整页参考图。
-- `visualExtractionComplete = true`，每个分层对象有视觉抽取、资产审计、`coordinateCalibrationId` 或原 PPTX 来源。
-- `typographyCalibrationComplete = true`，主要文字样式有同一 `acceptanceRenderer` 下的渲染校准证据。
-- `autoIterationCount <= 3`，任何 `autoFallbacks` 和 `autoFidelityBlocked` 都已记录；存在阻断项时不得声明 Level 3 通过。
-- `forbiddenOverlayShapesDetected = 0`。
-- 背景、人物、内容图分层符合 asset-audit。
-- 完成 [level-3-delivery-checklist.md](../assets/templates/level-3-delivery-checklist.md)。
+Mode E：源文件备份与哈希、新文件另存、只修改指定对象，保留用户文字/形状/位置。检查变更页前后渲染及对象差异；共享样式改变才扩大范围。新重构区域按 B/C 范围做验证。
 
-Level 3 每项门槛都必须记录 `automatedEvidence`、`manualEvidence` 和 `status`。自动化无法证明的项目必须由人工证据闭环。
-Level 3 的 `visualExtractionComplete`、`typographyCalibrationComplete` 和 `visualOverlapCount` 必须进入 `level3Gates`，不能只留在普通 checks。
+Level 1/4 走各自检查表与报告；validate_rebuild_evidence.py 当前只验证 Level 2/3，不拿它的“不适用”当作通过。
 
-## Level 4 增量修改 QA
+## 交付
 
-用于 Mode E。
+默认 `deliveryProfile=standard`：outputs 只放最终 PPTX、预览、简短交付说明和需用户处理的素材；详细对象、审计与版本日志保留 work。`benchmark` 才额外整理阶段耗时、失败尝试、探针和操作实验的对照报告。两种交付记录量不改变内容、视觉和编辑边界标准。
 
-- 备份文件存在。
-- 源文件哈希已记录。
-- 原文件未覆盖。
-- 新文件另存。
-- 用户文字、形状和位置未丢失。
-- 只替换目标对象。
-
-## 最终报告格式
-
-报告输出路径、页数、`autonomyProfile`、`acceptanceRenderer`、`fontCandidateSet`、`coordinateCalibration`、临时校准层路径、字体槽位、未解析字体、媒体、对象角色、未知名称、图片覆盖风险、几何覆盖风险、渲染预览、任务输入、视觉抽取、字号校准、布局规格、视觉证据、`autoIterationCount`、`autoFallbacks`、`autoFidelityBlocked`、QA 等级、修复项、剩余风险和降级事件。
-
-## 导出失败处理
-
-遵循 [SKILL.md 的失败降级](../SKILL.md#失败降级)。复用旧预览或旧 PPTX 时标记为回归测试，不能标记为完整新构建。
+内容、视觉、编辑范围、证据合规分别报告；轻微差异可记录在已通过的视觉复核中，待抠素材不能假称完整分层。由公共脚本组合真实统计与一份视觉复核，不为缩短说明丢弃证据，不把字段缺失写成 PASS。预览失败时 PPTX 可先交付，但视觉 QA 必须记未完成。

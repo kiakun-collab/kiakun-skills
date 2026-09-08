@@ -1,0 +1,26 @@
+# 素材拆分与透明性
+
+按对象选择原件复用、原图裁切、原生图形或必要生成。Mode B 允许在约定范围把人物、环境、光晕合成无字主视觉；Mode C 只拆用户要求独立的对象。无素材不自动转重新设计。
+
+## 返回即检查
+
+维护 [asset-manifest-template.json](../assets/templates/asset-manifest-template.json)：每个资产含 id、page、path、requiresAlpha；需交接的资产补充 pptxObjectName、targetBBox、source 和遮挡补全说明。同一 ID 用在 task-input 的 mustRemainIndependentImages / mustHaveAlpha、布局和报告中。
+
+每张生成素材返回后即运行公共入口 `assets`，也可直接执行 `audit_image_alpha.py`。它只读取像素和通道，不抠图、不生成图片。
+
+- RGB/无透明信息，或 RGBA 全 255：OPAQUE。
+- alpha 全 0：EMPTY，不是合格切图。
+- 有非透明主体且存在透明像素：ALPHA_PRESENT，仅通过通道检查。
+- 格式损坏或读不到：UNREADABLE。
+
+ALPHA_PRESENT 仍需从实际叠加/移动后的渲染检查边缘、残留棋盘格、人物身份和产品比例；一个透明像素或矩形透明边框不能证明已抠好。普通场景照片 requiresAlpha=false；无需为它们补透明通道。
+
+## 失败即交接
+
+默认 `assetPolicy.alphaFailurePolicy=manual-handoff`：首次返回不透明素材即停止仅为 alpha 重复生图，将该素材标成 `MANUAL_CUTOUT_REQUIRED`，保留可替换独立图片对象、对应位置及待抠素材，继续完成其余内容。交付时清楚列出待抠 ID，不宣称完整 Level 3；不要额外给每张图再试一轮来碰运气。
+
+用户明确要求自动完成全部抠图时设为 `required`。透明性失败保留未完成状态，改用当前可用、获授权的抠图能力；不因严格要求而反复重生人物/产品，不改承诺为 B，也不阻止其他页完成。
+
+普通人物、产品通常可交给用户抠背景。薄纱、烟雾、玻璃、反光等需要保留半透明信息：允许合成时留在视觉合成层；必须独立时明确其未完成部分，不把普通去背景当成完成半透明重建。不可见区域的生成补全记为推断。
+
+不透明待抠素材应避免在可交付页面形成大面积遮字；可先保留源构图的合成展示并附独立待抠对象/文件，但仅在编辑范围允许合成展示时使用，且 B/C 不能嵌入整张带字参考页。图片生成和实际像素处理仍遵守当前 imagegen/用户选定工具契约。

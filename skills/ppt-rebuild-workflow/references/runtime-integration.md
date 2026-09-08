@@ -4,9 +4,12 @@
 
 ## Presentations Skill 激活时
 
+- 先用 execution-runner 固定路由并检查实际 runtime。公共适配器 assets/runtime/rebuild-runtime.mjs 复用当前 finalizer：设置 RUNTIME_NODE_MODULES、同步原生表格 owner 与 layoutArgs，并从最终 PPTX 渲染。适配器随任务复制到已连接 node_modules 的 build 目录；不修改系统依赖。
+- 反向线段不能产生负宽高：使用运行时支持的端点/路径与方向属性；只对 bbox 取绝对值会丢失方向，不能作为通用修复。普通矩形、图片和文字框宽高必须非负。
+
 - 构建、导入、编辑、导出和渲染遵循 `presentations:Presentations` 的 artifact-tool presentation JSX 契约。
 - 不默认使用 `python-pptx`、直接 OOXML 或 LibreOffice 修改最终 PPTX。
-- 本 Skill 的三个脚本只读 PPTX 包，不替代构建、导出或渲染运行时。
+- 本 Skill 的审计脚本只读 PPTX 包，不替代构建、导出或渲染运行时。
 - 渲染优先使用 Presentations Skill 提供的 artifact-tool helper。
 - `acceptance_renderer` 默认记录为 artifact-tool render；如果用户最终要求 PowerPoint desktop fidelity，必须记录 renderer delta，不能把 artifact-tool 渲染视为 PowerPoint 原生完全一致。
 - Mode B/C 可用 artifact-tool 生成临时参考校准 deck/page；最终交付 deck 必须排除整页参考校准层。
@@ -20,7 +23,7 @@
 - 验收目标是达到参考图约定的版式、构图、层级、色彩、字体观感和关键素材效果，不得要求超越参考图。
 - 不适用 Presentations 通用新建流程中的 `beat the reference`、`comeback rubric` 或同类改进要求；若其报告结构要求填写该指标，记录 `reference delta = n/a`。
 - Presentations 仍负责 artifact-tool 构建、导入、导出和渲染；本 Skill 的视觉还原度规则负责判定重构是否达标。
-- 只有用户明确要求“改版、优化、升级或做得比参考图更好”时，才允许创建新的设计目标。先进入 Mode D 生成并确认新参考方向，再按 Mode B/C 重构。
+- 只有用户明确要求新视觉方向时才增加 Mode D 设计阶段。“优化识别/速度/还原度”不代表改版；用户已授权自主定稿时直接选定方向并继续 B/C。
 - 正确修复 AI 伪字、乱码或事实错误不属于未经授权的重新设计。
 
 ## 独立运行时

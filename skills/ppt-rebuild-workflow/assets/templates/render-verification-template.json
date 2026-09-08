@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "2.0",
+  "outputPptxSha256": "",
+  "pages": [
+    {
+      "page": 1,
+      "renderPath": "",
+      "renderSha256": "",
+      "reviewer": "",
+      "observations": "",
+      "coordinateStatus": "PENDING",
+      "typographyStatus": "PENDING",
+      "triggeredChecks": [],
+      "unresolvedItems": []
+    }
+  ],
+  "notes": [
+    "保存 PPTX 并渲染后真实复核。相对路径均以 qa-report 所在目录为基准；pairing manifest 建议写绝对 renderDirectory。",
+    "用标准 SHA-256 计算当前 PPTX 和渲染文件摘要；摘要只检查证据新鲜度，不证明画面质量。",
+    "triggeredChecks 每项为 kind: coordinate/typography、reason、evidenceFile；只接受对应计算脚本 PASS。",
+    "NOT_REQUIRED 仅表示不需要全量计算校准，不能省略每页实际渲染验证。"
+  ]
+}

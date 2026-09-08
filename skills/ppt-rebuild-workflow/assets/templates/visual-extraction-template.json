@@ -53,8 +53,18 @@
           }
         }
       ],
-      "bbox": { "x": 0, "y": 0, "w": 0, "h": 0 },
-      "glyphBBox": { "x": 0, "y": 0, "w": 0, "h": 0 },
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "glyphBBox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
       "lineCount": 1,
       "lineBBoxes": [],
       "fontCandidateSet": [],
@@ -65,7 +75,12 @@
       "color": "",
       "align": "",
       "verticalAlign": "",
-      "textBoxPaddingPx": { "left": null, "top": null, "right": null, "bottom": null },
+      "textBoxPaddingPx": {
+        "left": null,
+        "top": null,
+        "right": null,
+        "bottom": null
+      },
       "renderMetrics": {
         "renderer": "",
         "constructionUnit": "",
@@ -86,7 +101,12 @@
       "role": "body-panel",
       "visualType": "roundRect",
       "pptPrimitive": "roundRect",
-      "bbox": { "x": 0, "y": 0, "w": 0, "h": 0 },
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
       "cornerRadiusPx": null,
       "fill": "",
       "stroke": "",
@@ -106,8 +126,18 @@
     {
       "id": "content-image-main",
       "role": "content-image",
-      "bbox": { "x": 0, "y": 0, "w": 0, "h": 0 },
-      "crop": { "left": null, "top": null, "right": null, "bottom": null },
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "crop": {
+        "left": null,
+        "top": null,
+        "right": null,
+        "bottom": null
+      },
       "editableStrategy": "",
       "allowedOverlays": [],
       "edgeIntegration": "",
@@ -128,10 +158,16 @@
     }
   ],
   "risks": [
-    { "objectId": "", "risk": "", "decision": "", "status": "open" }
+    {
+      "objectId": "",
+      "risk": "",
+      "decision": "",
+      "status": "open"
+    }
   ],
   "notes": [
     "删除不适用示例；所有进入 layout-spec 的对象必须保留 sourceExtractionId、coordinateCalibrationId 或来源说明。",
-    "低置信对象默认选择 baked-asset 或 mode-b-fallback；只有必须单独编辑且无稳定实现时才需要人工复核。"
+    "低置信对象仅在用户约定的编辑边界内选择 baked-asset；必须独立编辑的对象不能自动降级。",
+    "fast/balanced 删除不适用的测量/校准空字段，最终状态引用 renderVerification；strict 保留计算证据。"
   ]
 }
