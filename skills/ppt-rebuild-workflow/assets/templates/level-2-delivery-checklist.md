@@ -1,43 +1,15 @@
 # Level 2 Delivery Checklist
 
-- [ ] `task-input.json` 已落盘，模式、字体、来源、可编辑边界、QA 等级和输出策略完整。
-- [ ] `autonomyProfile`、`acceptanceRenderer` 和自动字体候选策略已记录；未指定字体时没有阻塞等待用户。
-- [ ] 每页 `visual-extraction`、测量标注图和 `typography-calibration` 已落盘。
-- [ ] 每页 `coordinateTransform`、3-12 个稳定自动宏观锚点、自动锚点标注图和临时校准层已落盘；不足 3 个时状态为 `INSUFFICIENT`。
-- [ ] `coordinateCalibration.status = PASS`，最大锚点偏移不超过容差。
-- [ ] 临时校准层中的整页参考图未进入最终 PPTX。
-- [ ] 标题、标签、正文框、页码线和主要结构对象的 `x/y/w/h` 已从参考图抽取并逐页记录；每项有测量 JSON、标注图、自动锚点或校准叠加证据。
-- [ ] 每个最终可编辑文字、形状和内容图对象有 `sourceExtractionId`、`coordinateCalibrationId`、原 PPTX 对象或明确来源说明。
-- [ ] 标题、正文、标签、页码等主要文字样式已在 `acceptanceRenderer` 中完成 2-4 个候选渲染比较，并记录 bbox、baseline、wrap 和 overflow。
-- [ ] 低置信文字、形状、图片和间距对象已进入风险列表并闭环；复杂低置信对象已自动选择 `baked-asset` 或 Mode B fallback，不存在未解决的必须编辑冲突。
-- [ ] 每页 `layout-spec` 和 `style-spec` 已落盘。
-- [ ] 关键渐隐、光晕和图片边缘已写入 `visualTransitions`，复杂过渡没有被简化为窄矩形补缝。
-- [ ] PPTX 使用新文件名，未覆盖用户原文件。
-- [ ] `latinFonts`、`eastAsianFonts`、`complexScriptFonts`、`symbolFonts` 和 `themeFonts` 已检查。
-- [ ] `unresolvedInheritedFonts` 为空，或每项已有人工证据。
-- [ ] 文本和结构对象可编辑，不是整页图片。
-- [ ] `fullSlideImageRiskPages` 为空，或每个风险页已证明不是整页参考图。
-- [ ] `wholeReferenceImageEmbedded` 有自动风险证据和人工对照结论。
-- [ ] 连续正文默认一个文本框，例外已说明。
-- [ ] 同一句标题、口号或强调句中的多色/多字号片段已优先用单文本框富文本 runs；若拆分，已记录独立布局原因和视觉间距证据。
-- [ ] 富文本 runs 的颜色、字号、字重和描边已在最终 PNG 中复查，没有被统一文本样式覆盖。
-- [ ] 形状按角色命名，`unknownRoleNames` 数量为 0 或逐项解释。
-- [ ] `slideCount` 正确，`emptyMediaCount = 0`。
-- [ ] `textFrameIntersections = 0`。
-- [ ] 细长形状与文本框相交候选为 0，或逐项给出视觉安全证据。
-- [ ] `unresolvedTextFrameCount = 0`，组合/旋转对象的 `geometryCoverageRisks` 已闭环。
-- [ ] 纯图片基线 deck 已产出，并用 `acceptanceRenderer` 渲染为 `baseline-render/`（同后端同画布）；基线本身渲染无尺寸/色彩/裁切异常。
-- [ ] 编辑版还原度已**同时对照原始参考图与 `baseline-render/`**，基线对照（同后端 apples-to-apples 主判据）通过。
-- [ ] 参考图与最终渲染图对照图已生成。
-- [ ] pairing JSON 已生成，缺失页、重复页和多余页检查通过。
-- [ ] 每页最终 PNG 已全尺寸视觉复核。
-- [ ] 视觉重叠审计只统计影响文字可读性的碰撞，未把正常形状/图片叠放误判为失败。
-- [ ] `visionAuditStatus = PASS` 且 `visualOverlapCount = 0`。
-- [ ] 已逐页检查版式、构图、层级、色彩、字体观感、间距节奏和关键素材是否达到参考图目标。
-- [ ] `visualFidelityStatus = PASS` 且 `majorFidelityDeviationCount = 0`。
-- [ ] `visibleAssetSeamCount = 0`，没有明显矩形接缝、色带、纹理中断或错误渐变方向。
-- [ ] 首次构建记为 `autoIterationCount = 0`，返修次数不超过 3；超过时已记录 `autoFidelityBlocked` 和最小自动回退，且未标记完整通过。
-- [ ] 所有轻微还原偏差已逐页记录；普通对象叠放若明显偏离参考图，已按还原度问题处理。
-- [ ] 若审计结论不稳定，已设置 `needsHumanReview` 并完成人工裁决。
-- [ ] 所有修复页已重新渲染并复审，没有复用旧预览。
-- [ ] QA 报告包含审计产物路径、修复项和剩余风险。
+- [ ] 来源、页序、模式、executionProfile、编辑范围、字体/渲染器、新路径已记录。
+- [ ] 用户定稿已直接采用且导出文字一致；未提供部分已按来源核对，关键未决项为空；没有未经授权的改版。
+- [ ] 每页主要对象的 `x/y/w/h` 已从参考图抽取或从原 PPTX 取得，来源与布局引用一致。
+- [ ] fast/balanced 的 renderVerification 完整；strict 保存测量 JSON、标注图与全页计算校准。
+- [ ] 触发的坐标/字体专项有对应计算证据；未触发用 NOT_REQUIRED 加理由，未伪称 PASS。
+- [ ] 包内结构/几何审计完成，未知字体、来源、变换和危险交叠已闭环。
+- [ ] 承诺的文字、表格、结构可编辑；整页参考图未进入成品，大图身份风险已核对。
+- [ ] 参考/渲染页码配对完整，每页新 PNG 在一次视觉复核中完成双门禁。
+- [ ] `visionAuditStatus = PASS`、`visualOverlapCount = 0`。
+- [ ] `visualFidelityStatus = PASS`、`majorFidelityDeviationCount = 0`。
+- [ ] `visibleAssetSeamCount = 0`，minor 已记录。
+- [ ] 返修未超 profile 预算，受影响页已重渲染，必须编辑冲突与 blocker 为零。
+- [ ] 输出另存、报告证据与当前 PPTX/渲染绑定，未完成项明确交付。

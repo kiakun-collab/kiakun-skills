@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "2.0",
+  "reviewFile": "",
+  "visualExtractionFiles": [],
+  "layoutSpecFiles": [],
+  "referenceRenderComparison": "",
+  "referenceRenderPairingManifest": "",
+  "measurementAnnotatedImages": [],
+  "coordinateCalibrationFiles": [],
+  "typographyCalibrationFiles": [],
+  "modeSpecificEvidenceFile": "",
+  "notes": [
+    "只填实际路径，均相对于本文件；reviewFile 由 prepare-review 生成并在实际看图后填写。",
+    "前三种校准列表仅 strict 或实际触发时使用；A/E 使用 modeSpecificEvidenceFile。",
+    "交付用 report 自动生成 qa-report，未完成字段保持 PENDING，不人工填充计算 PASS。"
+  ]
+}

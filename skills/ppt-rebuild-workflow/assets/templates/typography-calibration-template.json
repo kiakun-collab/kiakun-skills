@@ -3,7 +3,10 @@
   "page": "XX",
   "targetFont": "",
   "fontCandidateSet": [],
-  "coordinateSystem": { "width": 1280, "height": 720 },
+  "coordinateSystem": {
+    "width": 1280,
+    "height": 720
+  },
   "renderProbeArtifacts": {
     "renderer": "",
     "constructionUnit": "",
@@ -17,25 +20,58 @@
       "role": "body-text",
       "text": "",
       "reference": {
-        "textBlockBBox": { "x": 0, "y": 0, "w": 0, "h": 0 },
-        "glyphBBox": { "x": 0, "y": 0, "w": 0, "h": 0 },
+        "textBlockBBox": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0
+        },
+        "glyphBBox": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0
+        },
         "lineCount": 1,
         "lineGapPx": null,
-        "paddingPx": { "left": null, "top": null, "right": null, "bottom": null }
+        "paddingPx": {
+          "left": null,
+          "top": null,
+          "right": null,
+          "bottom": null
+        }
       },
       "candidates": [
         {
           "id": "body-text-main-candidate-01",
           "renderPath": "",
-          "renderCrop": { "x": 0, "y": 0, "w": 0, "h": 0 },
+          "renderCrop": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          },
           "fontFamily": "",
           "fontSizePt": 16,
           "constructionFontSize": null,
           "fontWeight": 400,
           "lineSpacingPercent": 135,
-          "textBox": { "w": 0, "h": 0 },
-          "paddingPx": { "left": 0, "top": 0, "right": 0, "bottom": 0 },
-          "renderedBBox": { "x": null, "y": null, "w": null, "h": null },
+          "textBox": {
+            "w": 0,
+            "h": 0
+          },
+          "paddingPx": {
+            "left": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0
+          },
+          "renderedBBox": {
+            "x": null,
+            "y": null,
+            "w": null,
+            "h": null
+          },
           "glyphDeltaPx": null,
           "baselineDeltaPx": null,
           "lineCountMatches": null,
@@ -51,15 +87,23 @@
         "constructionFontSize": null,
         "fontWeight": null,
         "lineSpacingPercent": null,
-        "textBox": { "w": null, "h": null },
-        "paddingPx": { "left": null, "top": null, "right": null, "bottom": null },
+        "textBox": {
+          "w": null,
+          "h": null
+        },
+        "paddingPx": {
+          "left": null,
+          "top": null,
+          "right": null,
+          "bottom": null
+        },
         "rationale": "",
         "needsHumanReview": false
       }
     }
   ],
   "notes": [
-    "至少保留 2-4 个渲染候选和最终选择依据。",
+    "仅 strict 或字体风险触发时使用；每种风险样式 2–4 个候选，同轮尽量批量渲染并复用完全一致的样式。",
     "比较最终渲染 bbox、基线和换行；不可仅比较构建 API 接收的字号数值。"
   ]
 }

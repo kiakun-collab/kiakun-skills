@@ -8,7 +8,6 @@
   },
   "sourceExtractionFile": "page-01-visual-extraction.json",
   "typographyCalibrationFile": "page-01-typography-calibration.json",
-  "visualTransitions": [],
   "objects": [
     {
       "name": "background-environment",
@@ -116,9 +115,11 @@
   "notes": [
     "Mode C 中环境、人物、内容图、文字和结构必须独立。",
     "每张内容图使用独立且可替换的图片对象。",
-    "layout-spec 中所有对象必须记录 coordinateCalibrationId；临时参考图只允许存在于校准产物，不能进入最终 deck。"
+    "layout-spec 中所有对象必须记录 coordinateCalibrationId；临时参考图只允许存在于校准产物，不能进入最终 deck。",
+    "这是完整计算校准示例；普通 balanced/fast 可省略未触发的校准文件，改用 renderVerification，不得复制示例中的素材或对象。"
   ],
   "coordinateCalibrationFile": "page-01-coordinate-calibration.json",
   "coordinateCalibrationId": "page-01-auto-calibration",
-  "acceptanceRenderer": "artifact-tool"
+  "acceptanceRenderer": "artifact-tool",
+  "executionProfile": "strict"
 }

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "2.0",
+  "assets": [],
+  "notes": [
+    "每项 id、page、path、requiresAlpha 必填；id 与 task-input 的独立/alpha 资产 ID 对应。",
+    "需要人工交接时加 pptxObjectName、targetBBox、source、inferredRegions。",
+    "requiresAlpha 必须是布尔值；普通内容照片无需 alpha。path 相对于本清单。"
+  ]
+}

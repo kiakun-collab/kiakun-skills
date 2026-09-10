@@ -1,3 +1,5 @@
+> 历史优化计划：当前执行规则以 ../../SKILL.md 与 ../../references/qa-standards.md 为准；已实现的共享引擎优化继续保留。
+
 # PPT-Rebuild-Workflow 优化计划 · 总览与执行规约
 
 > 规划 agent 维护;实际开发由执行 agent 完成。每份 PX 文档可独立派单,但必须先读本文件。

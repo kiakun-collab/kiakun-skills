@@ -1,5 +1,11 @@
 {
   "schemaVersion": "2.0",
+  "deliveryProfile": "standard",
+  "contentStatus": "PENDING",
+  "editableBoundaryStatus": "PENDING",
+  "assetAuditFile": "",
+  "userCopyAuditFile": "",
+  "geometryExceptions": [],
   "outputPptx": "",
   "qaLevel": "",
   "autonomyProfile": "auto-calibrated",
@@ -12,7 +18,8 @@
     "status": "",
     "maxAnchorOffsetPx": null,
     "tolerancePx": null,
-    "temporaryReferenceExcludedFromFinalDeck": null
+    "temporaryReferenceExcludedFromFinalDeck": null,
+    "reason": ""
   },
   "autoIterationCount": null,
   "autoFallbacks": [],
@@ -53,7 +60,7 @@
   "unresolvedTextFrameCount": null,
   "unresolvedGroupTransformCount": null,
   "geometryCoverageRisks": [],
-  "bodyCandidates": [],
+  "bodyCandidatesPerPage": [],
   "textRecovery": {
     "sourceFiles": [],
     "resolvedItems": [],
@@ -76,13 +83,41 @@
   "needsHumanReview": false,
   "humanReviewEvidence": "",
   "level3Gates": {
-    "wholeReferenceImageEmbedded": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
-    "combinedBackgroundPersonPictureCount": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
-    "contentPicturesAreIndependentObjects": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
-    "visualOverlapCount": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
-    "visualExtractionComplete": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
-    "typographyCalibrationComplete": { "automatedEvidence": "", "manualEvidence": "", "status": "" },
-    "forbiddenOverlayShapesDetected": { "automatedEvidence": "", "manualEvidence": "", "status": "" }
+    "wholeReferenceImageEmbedded": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "combinedBackgroundPersonPictureCount": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "contentPicturesAreIndependentObjects": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "visualOverlapCount": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "visualExtractionComplete": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "typographyCalibrationComplete": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    },
+    "forbiddenOverlayShapesDetected": {
+      "automatedEvidence": "",
+      "manualEvidence": "",
+      "status": ""
+    }
   },
   "auditArtifacts": {
     "structureAudit": "",
@@ -95,39 +130,26 @@
   },
   "renderPreview": "",
   "contactSheet": "",
-  "checks": {
-    "coordinateCalibrationPassed": null,
-    "fontConsistent": null,
-    "fontInheritanceResolved": null,
-    "fontProbeRendered": null,
-    "taskInputPresent": null,
-    "visualExtractionPresent": null,
-    "typographyCalibrationPresent": null,
-    "editableObjectsHaveExtractionSource": null,
-    "lowConfidenceExtractionItemsResolved": null,
-    "textEditable": null,
-    "noObviousOverlap": null,
-    "spacingCloseToReference": null,
-    "compositionCloseToReference": null,
-    "reasonableShapes": null,
-    "noRedundantTextBoxes": null,
-    "layoutSpecsPresent": null,
-    "referenceRenderComparisonPresent": null,
-    "pairingManifestValidated": null,
-    "fullSlideImageRisksResolved": null,
-    "textFrameIntersectionsZero": null,
-    "thinShapeTextFrameIntersectionsResolved": null,
-    "geometryCoverageRisksResolved": null,
-    "visionAuditPassed": null,
-    "visualOverlapCountZero": null,
-    "visualFidelityPassed": null,
-    "majorFidelityDeviationCountZero": null,
-    "visibleAssetSeamCountZero": null,
-    "oneBodyCandidatePerStandardPage": null,
-    "noUnresolvedRequiredEditabilityConflict": null,
-    "noAutoFidelityBlocker": null
-  },
   "degradationEvents": [],
   "issues": [],
-  "fixes": []
+  "fixes": [],
+  "executionProfile": "balanced",
+  "calibrationPolicy": "targeted",
+  "renderVerificationFile": "",
+  "timings": {
+    "stages": [],
+    "renderCount": 0,
+    "probeRenderCount": 0,
+    "imageGenerationCount": 0,
+    "repairedPages": []
+  },
+  "notes": [
+    "优先用 rebuild_workflow.py prepare-review / report 汇总；本文件仅作完整字段参考，不重复手写审计统计。",
+    "geometryExceptions 保留原始相交数，按 page/intersectionIndex 逐项记录真实复核；不能批量清零。",
+    "assetAuditFile 必须包含真实通道检查；MANUAL_CUTOUT_REQUIRED 可交接但不是完整 Level 3。",
+    "executionProfile 与 calibrationPolicy 应与 task-input 一致。fast/balanced 使用 renderVerificationFile，strict 使用全量计算证据。",
+    "无专项触发时不用填写标注图/字体探针路径，不得为了填表创建无用产物。",
+    "auditArtifacts 指向实际脚本输出，visionAuditReport 和 visualFidelityReport 可以指向同一个综合视觉报告。",
+    "level3Gates 只用于 Level 3；其他空字段删除或按实际填写，未完成项目不得写 PASS。"
+  ]
 }
