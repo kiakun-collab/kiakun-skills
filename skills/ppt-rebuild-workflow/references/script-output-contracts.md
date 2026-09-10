@@ -2,6 +2,20 @@
 
 修改脚本参数或输出字段时，同时更新本文件、调用代码、QA 模板和回归测试。
 
+## layout-data.mjs / build-from-layout.mjs
+
+统一结构与字段见 [data-driven-build.md](data-driven-build.md)。复制 `assets/runtime/` 三个模块至已连接 node_modules 的任务脚本目录后执行：
+
+```powershell
+node build-from-layout.mjs layout-spec.json build-config.json
+```
+
+输入 3.0 的模板/逐页差异或已填写的 2.0 单页对象。对象 `name` 在页内唯一，模板同名对象按属性覆盖，数组替换；坐标为画布 px、字号为 pt。配置 runtime 与文件路径均为绝对路径。单一数据集可绑定表格、图表和 sum 汇总文字。
+
+输出 `buildDir/resolved-layout.json`、`layout-pages/page-N.json`、`candidate.pptx`、`object-map.json`、`metrics.json`、`render/` 与单独 `finalPath`。派生布局供原 QA 使用，不改写抽取证据。对象映射中的 runtimeId 是构建期 ID，图片名称导出需实际核对；素材哈希、页码和位置可用于独立验证。metrics 的 `visualStatus=NOT_REVIEWED`，执行成功不自动判定视觉 PASS。
+
+成功退出 0；输入、素材、运行时、finalizer 或渲染失败退出 1。重复对象、未知模板/样式、非数字坐标、负宽高、缺数据字段和未支持对象类型直接报错，不静默生成栅格替代物。构建目录须新建且为空；最终文件不覆盖既有版本。`resolveLayout` 为无副作用纯数据函数，可在其他后端前复用；自定义适配扩展只处理必要对象。
+
 ## rebuild_workflow.py / rebuild-runtime.mjs
 
 日常公共入口和参数示例见 [execution-runner.md](execution-runner.md)。
@@ -28,6 +42,18 @@ python scripts/audit_image_alpha.py asset-manifest.json --policy manual-handoff 
 manifest.assets[]：唯一 id、page、path、requiresAlpha；需要交接时附 pptxObjectName、targetBBox、source、inferredRegions。输出实际 mode、hasAlpha、alphaMin/Max、透明像素比例与 sha256；status 为 ALPHA_PRESENT/OPAQUE/EMPTY/UNREADABLE，edgeQuality 始终 NOT_REVIEWED。ALPHA_PRESENT 不证明已抠好边缘。
 
 整体 status 为 PASS、MANUAL_CUTOUT_REQUIRED 或 BLOCKED；退出 0/1/2 分别为通道检查完成且无待办、需处理、输入错误。required 策略下缺 alpha 为 BLOCKED；manual-handoff 只把非空 OPAQUE 交接，空图/损坏图仍阻断该素材。该脚本不修改像素、不自动生图。
+
+## extract_asset_grabcut.py
+
+仅在复杂背景的独立素材提取任务中使用；完整提示格式、预算和坐标换算见 [assisted-cutout.md](assisted-cutout.md)。
+
+```powershell
+python scripts/extract_asset_grabcut.py --input reference.png --hints cutout-hints.json --out-dir work/cutout-v1
+```
+
+输出到新目录：`asset.png`、`preview.png`（深浅底）、`mask.png`（原 ROI 大小 alpha）和 `cutout.json`。bbox 统一源图像素、LTRB 右下开区间；记录 `sourceSize`、`roi`、`visibleBBoxSource`、`outputSize`、`padding`、`outputToSource`、输入/提示/输出哈希、`componentCount` 与实际计算用时。`outputToSource` 给出输出 PNG 到源图的平移，不含 PPT 缩放。
+
+退出 0 仅代表文件生成，`visualStatus=NOT_REVIEWED`；通道与视觉验收仍分别执行。输入、依赖、种子、空结果错误退出 2，不产出可交付素材；已有输出目录拒绝覆盖。输入全透明拒绝，已有部分透明则保留整张 RGBA 像素和尺寸、标记 `ALPHA_REUSED`，不重新分割。轮廓、孔洞和局部排除均来自调用者提示，脚本不自动识别主体，也不补画缺失部分。
 
 ## audit_pptx_structure.py
 

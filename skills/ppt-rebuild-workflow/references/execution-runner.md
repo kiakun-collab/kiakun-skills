@@ -36,13 +36,15 @@ bind-copy 只更新抽取中与 userCopy ID 对应的文字字段，保留几何
 
 生图等待期间搭建文字、图表和已就绪页，按页面依赖推进。当前平台允许时少量并行独立生图或构建，最终组装仍由一个写入者完成，不让多个任务同时写同一 PPTX/报告。
 
-由 Presentations 写 builder。可将 [rebuild-runtime.mjs](../assets/runtime/rebuild-runtime.mjs) **复制到任务 build 目录**，按当前 Presentations implementation 创建该目录的 node_modules 链接，然后从 builder 导入 `finalizeAndRender`。不能直接从 skill 安装目录导入带 bare imports 的副本。
+优先复用 [统一数据构建器](data-driven-build.md)，将 `assets/runtime/` 三个 `.mjs` **复制到任务 build 脚本目录**，按当前 Presentations implementation 创建该目录的 node_modules 链接。`node build-from-layout.mjs layout-spec.json build-config.json` 处理单页或多页，不需逐页重写构建代码。任务配置中的 `buildDir` 指向本版新建且为空的产物子目录，与存放脚本及 node_modules 的目录区分。已有 PPTX 增量编辑或需扩展对象时使用专用 builder，继续导入 `finalizeAndRender`。不能直接从 skill 安装目录导入带 bare imports 的副本。
 
 适配器接受绝对路径 workspaceDir、candidatePath、finalPath、renderDir、presentationSkillDir、pythonExecutable，及真实 expectedSlideSizeEmu、requirements、fontPolicy。每版使用新 finalPath 和空 renderDir，避免覆盖旧证据。调用当前 finalizer，原生表格声明自动同步到 layoutArgs，再从最终实际 PPTX 导入并渲染，写 render-receipt.json 的 PPTX/各 PNG 哈希。它不覆盖源稿，不替代运行时标记，不自动安装依赖。Presentations 版本改变时核对当前 API；兼容性失败如实记录。
 
 ```powershell
 python scripts/rebuild_workflow.py run work/rebuild --stage build --pages 1 2 --revision 0 --cwd . --render-receipt work/render/render-receipt.json -- node build.mjs
 ```
+
+统一构建器时将末尾替换为 `node work/build/build-from-layout.mjs layout-spec.json build-config.json`，`--render-receipt` 指向配置 `buildDir/render/render-receipt.json`。QA 的 `layoutSpecFiles` 直接引用 `buildDir/layout-pages/page-N.json`，不用再手写逐页展开文件。用户定稿先绑定到真实抽取，再以相同 ID 写进统一数据；公共模板依据与单页文字来源分别保留。
 
 `--` 后为可执行文件与独立参数，不是 shell 字符串。使用实际 Node 绝对路径；run 注入已配置的 RUNTIME_NODE_MODULES，并将每次 stdout/stderr 写入唯一日志。必要的运行时标记按 Presentations 规定单独执行，不夹入该包装命令。
 
@@ -66,6 +68,8 @@ python scripts/rebuild_workflow.py prepare-review work/rebuild --pptx outputs/fi
 先核对 receipt 的 PPTX、PNG 哈希及完整页序；并行运行结构/文字框审计，再创建该版本的 review-HASH.json。所有主观结论初始 PENDING/空值；查看真实最终页后填写 contentStatus、visionAuditStatus、visualFidelityStatus、editableBoundaryStatus、各类实际数量、pages 观察与触发项。同一份文件同时充当视觉审计、还原审计和 renderVerification，不复制三份结论。不要改其哈希来掩盖旧渲染。
 
 内容 PASS：userCopy 已提供部分不再 OCR；未提供部分仍有来源。视觉 PASS 允许已记录 minor；major、遮字、明显接缝不能用 minor 隐藏。几何预警使用 qa-standards 的逐项 geometryExceptions，保留原始计数。C 再填写真实 level3Gates，并附实际移动后的必要证据；alpha 通道检查不能代替边缘复核。
+
+统一模板任务按 `templatePolicy` 中用户已要求的共同参数与单页内容验收。已授权的模板归一化不计还原偏差；公共参数校准一次，逐页检查内容、溢出与有意例外，不新增模板专用的重复视觉门禁。
 
 使用原有 make_reference_render_comparison.py 生成配对图，填写 [evidence-input-template.json](../assets/templates/evidence-input-template.json) 的实际路径。路径相对于 evidence-input 文件；其中 reviewFile 指向上述共享复核文件。
 

@@ -80,6 +80,9 @@ class RouteBehaviorTests(unittest.TestCase):
     def test_json_templates_are_parseable_and_canonical(self):
         for path in (ROOT / "assets/templates").glob("*.json"):
             data = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(data["schemaVersion"], "2.0")
+            expected = "3.0" if path.name in {
+                "layout-spec-template.json", "layout-spec-shared-template-example.json"
+            } else "2.0"
+            self.assertEqual(data["schemaVersion"], expected)
             for legacy in ("unexpectedTextOverlapCount", "flaggedPages", "autoIteration"):
                 self.assertNotIn(legacy, data)

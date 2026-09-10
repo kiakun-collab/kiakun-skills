@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "3.0",
+  "coordinateSystem": {"width": 1280, "height": 720},
+  "templatePolicy": {"mode": "normalize", "basis": "演示数据：用户要求两页采用同一套蓝白模板"},
+  "styles": {
+    "title": {"fontSizePt": 36, "bold": true, "color": "#FFFFFF"},
+    "body": {"fontSizePt": 20, "color": "#111111", "lineSpacingPercent": 125}
+  },
+  "templates": {
+    "blue-white": {
+      "background": "#FFFFFF",
+      "objects": [
+        {"name": "background-header", "type": "shape", "shape": "rect", "role": "background", "x": 0, "y": 0, "w": 1280, "h": 180, "z": 0, "style": {"fill": "#0875ED"}, "measurementEvidence": "本示例显式定义的共同模板；不是图片测量"},
+        {"name": "title-main", "type": "text", "role": "title", "x": 44, "y": 58, "w": 1180, "h": 76, "z": 10, "styleRef": "title", "measurementEvidence": "本示例的公共标题位置和样式"},
+        {"name": "body-text-main", "type": "text", "role": "body-text", "x": 44, "y": 225, "w": 1100, "h": 160, "z": 10, "styleRef": "body", "measurementEvidence": "本示例的公共正文位置和样式"}
+      ]
+    }
+  },
+  "pages": [
+    {"page": 1, "template": "blue-white", "objects": [
+      {"name": "title-main", "text": "第一页：公共模板"},
+      {"name": "body-text-main", "text": "背景、标题位置和字号只定义一次。\n每页填写自己的内容。"}
+    ], "notes": ["技能示例数据，不是业务内容。"]},
+    {"page": 2, "template": "blue-white", "objects": [
+      {"name": "title-main", "text": "第二页：内容与局部差异"},
+      {"name": "body-text-main", "text": "这一页只改变正文内容和文本框宽度。\n公共模板仍保持一致。", "w": 780}
+    ], "notes": ["技能示例数据，不是业务内容。"]}
+  ]
+}

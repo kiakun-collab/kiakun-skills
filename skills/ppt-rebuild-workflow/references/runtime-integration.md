@@ -2,6 +2,8 @@
 
 本 Skill 负责模式选择、语义校验、资产策略、可编辑边界和增强 QA，不另行定义底层 PPTX 构建运行时。
 
+新建重构页通过 [统一数据构建](data-driven-build.md) 接入当前运行时：`layout-data.mjs` 只解析数据和模板，`build-from-layout.mjs` 将解析结果转成 Presentations 原生对象，`rebuild-runtime.mjs` 调用当前 finalizer 并渲染。底层仍由 Presentations 实现，不创建替代渲染器；其他构建后端可以复用同一解析结果并提供适配层。
+
 ## Presentations Skill 激活时
 
 - 先用 execution-runner 固定路由并检查实际 runtime。公共适配器 assets/runtime/rebuild-runtime.mjs 复用当前 finalizer：设置 RUNTIME_NODE_MODULES、同步原生表格 owner 与 layoutArgs，并从最终 PPTX 渲染。适配器随任务复制到已连接 node_modules 的 build 目录；不修改系统依赖。
@@ -21,6 +23,7 @@
 
 - 参考图是忠实重构目标，不是要求改进的 `quality reference`。
 - 验收目标是达到参考图约定的版式、构图、层级、色彩、字体观感和关键素材效果，不得要求超越参考图。
+- 用户明确要求统一模板时，验收目标是共同模板与逐页内容要求；校正 AI 参考页的轻微样式/位置漂移属于该要求，不额外触发 D，也不按逐图像素差异反复返修。
 - 不适用 Presentations 通用新建流程中的 `beat the reference`、`comeback rubric` 或同类改进要求；若其报告结构要求填写该指标，记录 `reference delta = n/a`。
 - Presentations 仍负责 artifact-tool 构建、导入、导出和渲染；本 Skill 的视觉还原度规则负责判定重构是否达标。
 - 只有用户明确要求新视觉方向时才增加 Mode D 设计阶段。“优化识别/速度/还原度”不代表改版；用户已授权自主定稿时直接选定方向并继续 B/C。

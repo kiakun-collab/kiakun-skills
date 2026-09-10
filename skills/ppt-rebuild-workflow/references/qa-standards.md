@@ -18,6 +18,7 @@ Mode A：页数与页序正确、媒体无空文件、PPTX 可读，检查 conta
 - 一次整页优先的最终 PNG 对照分别记录文字可读性、版式、构图、层级、色彩和主要素材。不得把多轮裁剪作为默认审计流程。
 - visionAuditStatus = PASS、visualOverlapCount = 0、visualFidelityStatus = PASS、majorFidelityDeviationCount = 0、visibleAssetSeamCount = 0。两项视觉结论可在同一次复核、同一个报告中，不要求重复看两遍。
 - 不要求像素级完全一致；minor 逐页记录，不强制为细微差异继续返修。普通叠放虽不碰文字，明显偏离参考图仍可能构成视觉还原度偏差。
+- 用户要求统一模板时，以共同模板参数和逐页内容要求为验收目标，AI 参考图非意图性偏差的归一化不计失败。真实观测与期望模板参数分开保留，公共模板校准一次，最终逐页检查可读性、内容与必要布局例外。
 - autoFidelityBlocked = false、未解决必须编辑冲突为 0 才能通过。修复后必须用新渲染验证，只有共享组件改变时扩大到相关页。
 
 ### 校准证据
