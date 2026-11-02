@@ -1,6 +1,6 @@
 # kiakun-skills
 
-用于内容创作、办公交付与自动化的 15 个 AI Agent Skills。每个技能独立提供 `SKILL.md`，可按需安装到 Codex、Claude Code 或其他支持该格式的 Agent。
+用于内容创作、办公交付与自动化的 16 个 AI Agent Skills。每个技能独立提供 `SKILL.md`，可按需安装到 Codex、Claude Code 或其他支持该格式的 Agent。
 
 ## 技能目录
 
@@ -13,6 +13,7 @@
 | 视觉创作 | [pitch-visual-prompting](skills/pitch-visual-prompting/SKILL.md) | 将比稿 brief 和参考资料转为视觉提示词 |
 | 游戏设计 | [game-ui-asset-pipeline](skills/game-ui-asset-pipeline/SKILL.md) | UI 素材切片、透明背景处理与 Godot 资产交付 |
 | 游戏设计 | [player-interaction-design](skills/player-interaction-design/SKILL.md) | 设计和检查玩家入口、操作、反馈与恢复流程 |
+| 视频创作 | [video-director](skills/video-director/SKILL.md) | 代码动画短片总控：分镜、自评、渲染，支持 Blender 与 AI 生图、AI 音乐（需手动输入 `/video-director` 启动） |
 | 内容平台 | [xiaohongshu](skills/xiaohongshu/SKILL.md) | 小红书登录、搜索、发布与内容运营 |
 | 内容平台 | [bilibili-video-summary](skills/bilibili-video-summary/SKILL.md) | 汇总视频、字幕与互动信息，辅助判断观看价值 |
 | 知识与地图 | [folder-to-vector-kb](skills/folder-to-vector-kb/SKILL.md) | 将文件夹文档整理为结构化知识库 |
